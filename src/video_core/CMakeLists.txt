@@ -1,4 +1,8 @@
 set(SRCS
+            texture/internal/morton.cpp
+            texture/internal/etc1.cpp
+            texture/codec.cpp
+            texture/internal/codecs.cpp
             renderer_opengl/gl_rasterizer.cpp
             renderer_opengl/gl_rasterizer_cache.cpp
             renderer_opengl/gl_shader_gen.cpp
@@ -21,6 +25,12 @@ set(SRCS
 
 set(HEADERS
             debug_utils/debug_utils.h
+            texture/internal/texture_utils.h
+            texture/internal/morton.h
+            texture/internal/etc1.h
+            texture/codec.h
+            texture/formats.h
+            texture/internal/codecs.h
             renderer_opengl/gl_rasterizer.h
             renderer_opengl/gl_rasterizer_cache.h
             renderer_opengl/gl_resource_manager.h
