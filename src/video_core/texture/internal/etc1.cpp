@@ -9,14 +9,24 @@
 #include "common/math_util.h"
 #include "common/swap.h"
 #include "common/vector_math.h"
-#include "etc1.h"
-#include "texture_utils.h"
+#include "video_core/texture/internal/etc1.h"
+#include "video_core/texture/internal/texture_utils.h"
 
-constexpr std::array<u8[2], 8> etc1_modifier_table = {{
+namespace {
+
+#ifdef _DEBUG
+#define CONST_FIX static
+#else
+#define CONST_FIX constexpr
+#endif
+
+CONST_FIX std::array<u8[2], 8> etc1_modifier_table = {{
     {2, 8}, {5, 17}, {9, 29}, {13, 42}, {18, 60}, {24, 80}, {33, 106}, {47, 183},
 }};
 
-namespace {
+constexpr u32 buildRGBA(u32 r, u32 g, u32 b, u32 a) {
+    return (a << 24) | (b << 16) | (g << 8) | r;
+}
 
 union ETC1Tile {
     u64 raw;
@@ -62,7 +72,7 @@ union ETC1Tile {
         BitField<60, 4, u64> r1;
     } separate;
 
-    const Math::Vec3<u8> GetRGB(u32 x, u32 y) const {
+    const u32 GetRGB(u32 x, u32 y) const {
         int texel = 4 * x + y;
 
         if (flip)
@@ -106,7 +116,7 @@ union ETC1Tile {
         ret.g() = MathUtil::Clamp(ret.g() + modifier, 0, 255);
         ret.b() = MathUtil::Clamp(ret.b() + modifier, 0, 255);
 
-        return ret.Cast<u8>();
+        return buildRGBA(ret.r(), ret.g(), ret.b(), 0);
     }
 };
 
@@ -121,7 +131,8 @@ inline void etc1_pass(u8* etc1_buffer, u8* linear_buffer, u32 x_blocks) {
         std::memcpy(&tile.raw, &etc1_buffer[i * 8], 8);
         for (u32 k = 0; k < 4; k++) {
             for (u32 j = 0; j < 4; j++) {
-                u32 rgba = (tile.GetRGB(j, k).ToRGB()) | 0xFF000000;
+                auto rgb = tile.GetRGB(j, k);
+                u32 rgba = rgb | 0xFF000000;
                 std::memcpy(&tmp[k * line + j * 4 + index], &rgba, 4);
             }
         }
@@ -142,7 +153,8 @@ inline void etc1a4_pass(u8* etc1_buffer, u8* linear_buffer, u32 x_blocks) {
             for (u32 j = 0; j < 4; j++) {
                 u32 alpha = (alpha_tile >> (4 * (j * 4 + k))) & 0x0F;
                 alpha |= (alpha << 4);
-                u32 rgba = tile.GetRGB(j, k).ToRGB() | (alpha << 24);
+                auto rgb = tile.GetRGB(j, k);
+                u32 rgba = rgb | (alpha << 24);
                 std::memcpy(&tmp[k * line + j * 4 + index], &rgba, 4);
             }
         }

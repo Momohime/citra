@@ -407,6 +407,11 @@ inline float Vec3<float>::Normalize() {
     return length;
 }
 
+template <>
+inline unsigned int Vec3<unsigned char>::ToRGB() const {
+    return (z << 16) | (y << 8) | x;
+}
+
 typedef Vec3<float> Vec3f;
 
 template <typename T>
@@ -610,6 +615,11 @@ public:
 #undef DEFINE_SWIZZLER3_COMP3
 #undef _DEFINE_SWIZZLER3
 };
+
+template <>
+inline unsigned int Vec4<unsigned char>::ToRGBA() const {
+    return (w << 24) | (z << 16) | (y << 8) | x;
+}
 
 template <typename T, typename V>
 Vec4<decltype(V{} * T{})> operator*(const V& f, const Vec4<T>& vec) {

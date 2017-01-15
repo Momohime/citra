@@ -1,9 +1,10 @@
 
+
 namespace {
 
 template <const Math::Vec4<u8> decode_func(const u8*)>
 inline void rgba_pass(u8* read, u8* write) {
-    u32 pixel = decode_func(read).ToRGBA();
+    auto pixel = decode_func(read).ToRGBA();
     std::memcpy(write, &pixel, 4);
 }
 
@@ -72,34 +73,36 @@ void RG8Codec::decode() {
 namespace {
 
 inline u16 convert_nibbles(u8 nibbles) {
-    return ((u16)Color::Convert4To8((nibbles & 0xF0) >> 4) << 8) |
-           (u16)Color::Convert4To8((nibbles & 0x0F));
+    u16 split = (nibbles & 0xF0) << 4 | (nibbles & 0x0F);
+    split |= (split << 4);
+    return split;
 }
 
-inline u32 build_luminance(u8 intensity, u8 alpha) {
+inline u32 build_luminance(u32 intensity, u32 alpha) {
     return (alpha << 24) | (intensity << 16) | (intensity << 8) | intensity;
 }
 
 inline void intensity_alpha_pass(u8* read, u8* write) {
     alignas(4) u8 pixel[2];
     std::memcpy(pixel, read, 2);
-    u32 result = build_luminance(pixel[0], pixel[1]);
+    u32 result = build_luminance(pixel[1], pixel[0]);
     std::memcpy(write, &result, 4);
 }
 
 inline void intensity_alpha_nibbles_pass(u8* read, u8* write) {
-    alignas(4) u8 pixel[2];
-    std::memcpy(pixel, read, 1);
-    u16 tmp = convert_nibbles(pixel[0]);
-    std::memcpy(pixel, &tmp, 2);
-    u32 result = build_luminance(pixel[0], pixel[1]);
+    alignas(4) u8 pixel;
+    std::memcpy(&pixel, read, 1);
+    u16 tmp = convert_nibbles(pixel);
+    u8 tmp2[2];
+    std::memcpy(tmp2, &tmp, 2);
+    u32 result = build_luminance(tmp2[1], tmp2[0]);
     std::memcpy(write, &result, 4);
 }
 
 inline void intensity_pass(u8* read, u8* write) {
-    alignas(4) u8 pixel[1];
-    std::memcpy(pixel, read, 1);
-    u32 result = build_luminance(pixel[0], 255);
+    u8 pixel;
+    std::memcpy(&pixel, read, 1);
+    u32 result = build_luminance(pixel, 255);
     std::memcpy(write, &result, 4);
 }
 
@@ -108,9 +111,9 @@ inline void intensity_nibbles_pass(u8* read, u8* write) {
     std::memcpy(pixel, read, 1);
     u16 tmp = convert_nibbles(pixel[0]);
     std::memcpy(pixel, &tmp, 2);
-    u32 result = build_luminance(pixel[0], 255);
+    u32 result = build_luminance(pixel[1], 255);
     std::memcpy(write, &result, 4);
-    result = build_luminance(pixel[1], 255);
+    result = build_luminance(pixel[0], 255);
     std::memcpy(write + 4, &result, 4);
 }
 

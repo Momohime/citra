@@ -1,6 +1,6 @@
-#include "common/common_types.h"
-
 #pragma once
+
+#include "common/common_types.h"
 
 enum class MortonPass { Tile8x8, Tile32x32 };
 

@@ -1,14 +1,14 @@
 set(SRCS
-            texture/internal/morton.cpp
-            texture/internal/etc1.cpp
-            texture/codec.cpp
-            texture/internal/codecs.cpp
             renderer_opengl/gl_rasterizer.cpp
             renderer_opengl/gl_rasterizer_cache.cpp
             renderer_opengl/gl_shader_gen.cpp
             renderer_opengl/gl_shader_util.cpp
             renderer_opengl/gl_state.cpp
             renderer_opengl/renderer_opengl.cpp
+            texture/internal/morton.cpp
+            texture/internal/etc1.cpp
+            texture/internal/codecs.cpp
+            texture/codec.cpp
             debug_utils/debug_utils.cpp
             clipper.cpp
             command_processor.cpp
@@ -25,12 +25,6 @@ set(SRCS
 
 set(HEADERS
             debug_utils/debug_utils.h
-            texture/internal/texture_utils.h
-            texture/internal/morton.h
-            texture/internal/etc1.h
-            texture/codec.h
-            texture/formats.h
-            texture/internal/codecs.h
             renderer_opengl/gl_rasterizer.h
             renderer_opengl/gl_rasterizer_cache.h
             renderer_opengl/gl_resource_manager.h
@@ -39,6 +33,12 @@ set(HEADERS
             renderer_opengl/gl_state.h
             renderer_opengl/pica_to_gl.h
             renderer_opengl/renderer_opengl.h
+            texture/internal/texture_utils.h
+            texture/internal/morton.h
+            texture/internal/etc1.h
+            texture/internal/codecs.h
+            texture/codec.h
+            texture/formats.h
             clipper.h
             command_processor.h
             gpu_debugger.h
