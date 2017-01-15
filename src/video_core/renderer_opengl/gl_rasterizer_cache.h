@@ -16,6 +16,7 @@
 #include "core/hw/gpu.h"
 #include "video_core/pica.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
+#include "video_core/texture/formats.h"
 
 namespace MathUtil {
 template <class T>
@@ -27,33 +28,6 @@ struct CachedSurface;
 using SurfaceCache = boost::icl::interval_map<PAddr, std::set<std::shared_ptr<CachedSurface>>>;
 
 struct CachedSurface {
-    enum class PixelFormat {
-        // First 5 formats are shared between textures and color buffers
-        RGBA8 = 0,
-        RGB8 = 1,
-        RGB5A1 = 2,
-        RGB565 = 3,
-        RGBA4 = 4,
-
-        // Texture-only formats
-        IA8 = 5,
-        RG8 = 6,
-        I8 = 7,
-        A8 = 8,
-        IA4 = 9,
-        I4 = 10,
-        A4 = 11,
-        ETC1 = 12,
-        ETC1A4 = 13,
-
-        // Depth buffer-only formats
-        D16 = 14,
-        // gap
-        D24 = 16,
-        D24S8 = 17,
-
-        Invalid = 255,
-    };
 
     enum class SurfaceType {
         Color = 0,
@@ -63,58 +37,8 @@ struct CachedSurface {
         Invalid = 4,
     };
 
-    static unsigned int GetFormatBpp(CachedSurface::PixelFormat format) {
-        static const std::array<unsigned int, 18> bpp_table = {
-            32, // RGBA8
-            24, // RGB8
-            16, // RGB5A1
-            16, // RGB565
-            16, // RGBA4
-            16, // IA8
-            16, // RG8
-            8,  // I8
-            8,  // A8
-            8,  // IA4
-            4,  // I4
-            4,  // A4
-            4,  // ETC1
-            8,  // ETC1A4
-            16, // D16
-            0,
-            24, // D24
-            32, // D24S8
-        };
-
-        ASSERT((unsigned int)format < ARRAY_SIZE(bpp_table));
-        return bpp_table[(unsigned int)format];
-    }
-
-    static PixelFormat PixelFormatFromTextureFormat(Pica::Regs::TextureFormat format) {
-        return ((unsigned int)format < 14) ? (PixelFormat)format : PixelFormat::Invalid;
-    }
-
-    static PixelFormat PixelFormatFromColorFormat(Pica::Regs::ColorFormat format) {
-        return ((unsigned int)format < 5) ? (PixelFormat)format : PixelFormat::Invalid;
-    }
-
-    static PixelFormat PixelFormatFromDepthFormat(Pica::Regs::DepthFormat format) {
-        return ((unsigned int)format < 4) ? (PixelFormat)((unsigned int)format + 14)
-                                          : PixelFormat::Invalid;
-    }
-
-    static PixelFormat PixelFormatFromGPUPixelFormat(GPU::Regs::PixelFormat format) {
-        switch (format) {
-        // RGB565 and RGB5A1 are switched in PixelFormat compared to ColorFormat
-        case GPU::Regs::PixelFormat::RGB565:
-            return PixelFormat::RGB565;
-        case GPU::Regs::PixelFormat::RGB5A1:
-            return PixelFormat::RGB5A1;
-        default:
-            return ((unsigned int)format < 5) ? (PixelFormat)format : PixelFormat::Invalid;
-        }
-    }
-
-    static bool CheckFormatsBlittable(PixelFormat pixel_format_a, PixelFormat pixel_format_b) {
+    static bool CheckFormatsBlittable(Pica::Texture::Format::Type pixel_format_a,
+                                      Pica::Texture::Format::Type pixel_format_b) {
         SurfaceType a_type = GetFormatType(pixel_format_a);
         SurfaceType b_type = GetFormatType(pixel_format_b);
 
@@ -134,7 +58,7 @@ struct CachedSurface {
         return false;
     }
 
-    static SurfaceType GetFormatType(PixelFormat pixel_format) {
+    static SurfaceType GetFormatType(Pica::Texture::Format::Type pixel_format) {
         if ((unsigned int)pixel_format < 5) {
             return SurfaceType::Color;
         }
@@ -143,11 +67,12 @@ struct CachedSurface {
             return SurfaceType::Texture;
         }
 
-        if (pixel_format == PixelFormat::D16 || pixel_format == PixelFormat::D24) {
+        if (pixel_format == Pica::Texture::Format::Type::D16 ||
+            pixel_format == Pica::Texture::Format::Type::D24) {
             return SurfaceType::Depth;
         }
 
-        if (pixel_format == PixelFormat::D24S8) {
+        if (pixel_format == Pica::Texture::Format::Type::D24S8) {
             return SurfaceType::DepthStencil;
         }
 
@@ -177,7 +102,7 @@ struct CachedSurface {
     float res_scale_height = 1.f;
 
     bool is_tiled;
-    PixelFormat pixel_format;
+    Pica::Texture::Format::Type pixel_format;
     bool dirty;
 };
 

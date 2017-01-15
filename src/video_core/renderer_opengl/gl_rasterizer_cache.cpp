@@ -21,6 +21,8 @@
 #include "video_core/pica_state.h"
 #include "video_core/renderer_opengl/gl_rasterizer_cache.h"
 #include "video_core/renderer_opengl/gl_state.h"
+#include "video_core/texture/codec.h"
+#include "video_core/texture/formats.h"
 #include "video_core/utils.h"
 #include "video_core/video_core.h"
 
@@ -30,20 +32,47 @@ struct FormatTuple {
     GLenum type;
 };
 
-static const std::array<FormatTuple, 5> fb_format_tuples = {{
-    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},     // RGBA8
-    {GL_RGB8, GL_BGR, GL_UNSIGNED_BYTE},              // RGB8
-    {GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1}, // RGB5A1
-    {GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},     // RGB565
-    {GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4},   // RGBA4
-}};
-
-static const std::array<FormatTuple, 4> depth_format_tuples = {{
+static const std::array<FormatTuple, 18> format_tuples = {{
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},                  // RGBA8
+    {GL_RGB8, GL_BGR, GL_UNSIGNED_BYTE},                           // RGB8
+    {GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1},              // RGB5A1
+    {GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},                  // RGB565
+    {GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4},                // RGBA4
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // IA8
+    {GL_RG8, GL_RG8, GL_UNSIGNED_BYTE},                            // RG8
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // I8
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // A8
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // IA4
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // I4
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // A4
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // ETC1
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // ETC1A4
     {GL_DEPTH_COMPONENT16, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT}, // D16
     {},
     {GL_DEPTH_COMPONENT24, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT},   // D24
     {GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8}, // D24S8
 }};
+
+static const std::array<bool, 18> native_format = {
+    true,  // RGBA8
+    true,  // RGB8
+    true,  // RGB5A1
+    true,  // RGB565
+    true,  // RGBA4
+    false, // IA8
+    true,  // RG8
+    false, // I8
+    false, // A8
+    false, // IA4
+    false, // I4
+    false, // A4
+    false, // ETC1
+    false, // ETC1A4
+    true,  // D16
+    false,
+    false, // D24
+    false, // D24S8
+};
 
 RasterizerCacheOpenGL::RasterizerCacheOpenGL() {
     transfer_framebuffers[0].Create();
@@ -52,55 +81,6 @@ RasterizerCacheOpenGL::RasterizerCacheOpenGL() {
 
 RasterizerCacheOpenGL::~RasterizerCacheOpenGL() {
     FlushAll();
-}
-
-static void MortonCopyPixels(CachedSurface::PixelFormat pixel_format, u32 width, u32 height,
-                             u32 bytes_per_pixel, u32 gl_bytes_per_pixel, u8* morton_data,
-                             u8* gl_data, bool morton_to_gl) {
-    using PixelFormat = CachedSurface::PixelFormat;
-
-    u8* data_ptrs[2];
-    u32 depth_stencil_shifts[2] = {24, 8};
-
-    if (morton_to_gl) {
-        std::swap(depth_stencil_shifts[0], depth_stencil_shifts[1]);
-    }
-
-    if (pixel_format == PixelFormat::D24S8) {
-        for (unsigned y = 0; y < height; ++y) {
-            for (unsigned x = 0; x < width; ++x) {
-                const u32 coarse_y = y & ~7;
-                u32 morton_offset = VideoCore::GetMortonOffset(x, y, bytes_per_pixel) +
-                                    coarse_y * width * bytes_per_pixel;
-                u32 gl_pixel_index = (x + (height - 1 - y) * width) * gl_bytes_per_pixel;
-
-                data_ptrs[morton_to_gl] = morton_data + morton_offset;
-                data_ptrs[!morton_to_gl] = &gl_data[gl_pixel_index];
-
-                // Swap depth and stencil value ordering since 3DS does not match OpenGL
-                u32 depth_stencil;
-                memcpy(&depth_stencil, data_ptrs[1], sizeof(u32));
-                depth_stencil = (depth_stencil << depth_stencil_shifts[0]) |
-                                (depth_stencil >> depth_stencil_shifts[1]);
-
-                memcpy(data_ptrs[0], &depth_stencil, sizeof(u32));
-            }
-        }
-    } else {
-        for (unsigned y = 0; y < height; ++y) {
-            for (unsigned x = 0; x < width; ++x) {
-                const u32 coarse_y = y & ~7;
-                u32 morton_offset = VideoCore::GetMortonOffset(x, y, bytes_per_pixel) +
-                                    coarse_y * width * bytes_per_pixel;
-                u32 gl_pixel_index = (x + (height - 1 - y) * width) * gl_bytes_per_pixel;
-
-                data_ptrs[morton_to_gl] = morton_data + morton_offset;
-                data_ptrs[!morton_to_gl] = &gl_data[gl_pixel_index];
-
-                memcpy(data_ptrs[0], data_ptrs[1], bytes_per_pixel);
-            }
-        }
-    }
 }
 
 void RasterizerCacheOpenGL::BlitTextures(GLuint src_tex, GLuint dst_tex,
@@ -184,7 +164,7 @@ bool RasterizerCacheOpenGL::TryBlitSurfaces(CachedSurface* src_surface,
     return true;
 }
 
-static void AllocateSurfaceTexture(GLuint texture, CachedSurface::PixelFormat pixel_format,
+static void AllocateSurfaceTexture(GLuint texture, Pica::Texture::Format::Type pixel_format,
                                    u32 width, u32 height) {
     // Allocate an uninitialized texture of appropriate size and format for the surface
     using SurfaceType = CachedSurface::SurfaceType;
@@ -199,17 +179,8 @@ static void AllocateSurfaceTexture(GLuint texture, CachedSurface::PixelFormat pi
 
     SurfaceType type = CachedSurface::GetFormatType(pixel_format);
 
-    FormatTuple tuple;
-    if (type == SurfaceType::Color) {
-        ASSERT((size_t)pixel_format < fb_format_tuples.size());
-        tuple = fb_format_tuples[(unsigned int)pixel_format];
-    } else if (type == SurfaceType::Depth || type == SurfaceType::DepthStencil) {
-        size_t tuple_idx = (size_t)pixel_format - 14;
-        ASSERT(tuple_idx < depth_format_tuples.size());
-        tuple = depth_format_tuples[tuple_idx];
-    } else {
-        tuple = {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE};
-    }
+    ASSERT((size_t)pixel_format < format_tuples.size());
+    FormatTuple tuple = format_tuples[(unsigned int)pixel_format];
 
     glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, width, height, 0, tuple.format,
                  tuple.type, nullptr);
@@ -227,7 +198,7 @@ static void AllocateSurfaceTexture(GLuint texture, CachedSurface::PixelFormat pi
 MICROPROFILE_DEFINE(OpenGL_SurfaceUpload, "OpenGL", "Surface Upload", MP_RGB(128, 64, 192));
 CachedSurface* RasterizerCacheOpenGL::GetSurface(const CachedSurface& params, bool match_res_scale,
                                                  bool load_if_create) {
-    using PixelFormat = CachedSurface::PixelFormat;
+    using PixelFormat = Pica::Texture::Format::Type;
     using SurfaceType = CachedSurface::SurfaceType;
 
     if (params.addr == 0) {
@@ -235,7 +206,7 @@ CachedSurface* RasterizerCacheOpenGL::GetSurface(const CachedSurface& params, bo
     }
 
     u32 params_size =
-        params.width * params.height * CachedSurface::GetFormatBpp(params.pixel_format) / 8;
+        params.width * params.height * Pica::Texture::Format::GetBpp(params.pixel_format) / 8;
 
     // Check for an exact match in existing surfaces
     CachedSurface* best_exact_surface = nullptr;
@@ -320,72 +291,36 @@ CachedSurface* RasterizerCacheOpenGL::GetSurface(const CachedSurface& params, bo
 
         if (!new_surface->is_tiled) {
             // TODO: Ensure this will always be a color format, not a depth or other format
-            ASSERT((size_t)new_surface->pixel_format < fb_format_tuples.size());
-            const FormatTuple& tuple = fb_format_tuples[(unsigned int)params.pixel_format];
+            // ASSERT((size_t)new_surface->pixel_format < format_tuples.size());
+            const FormatTuple& tuple = format_tuples[(unsigned int)params.pixel_format];
 
             glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)new_surface->pixel_stride);
             glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width, params.height, 0,
                          tuple.format, tuple.type, texture_src_data);
             glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         } else {
-            SurfaceType type = CachedSurface::GetFormatType(new_surface->pixel_format);
-            if (type != SurfaceType::Depth && type != SurfaceType::DepthStencil) {
-                FormatTuple tuple;
-                if ((size_t)params.pixel_format < fb_format_tuples.size()) {
-                    tuple = fb_format_tuples[(unsigned int)params.pixel_format];
-                } else {
-                    // Texture
-                    tuple = {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE};
-                }
-
-                std::vector<Math::Vec4<u8>> tex_buffer(params.width * params.height);
-
-                Pica::DebugUtils::TextureInfo tex_info;
-                tex_info.width = params.width;
-                tex_info.height = params.height;
-                tex_info.stride =
-                    params.width * CachedSurface::GetFormatBpp(params.pixel_format) / 8;
-                tex_info.format = (Pica::Regs::TextureFormat)params.pixel_format;
-                tex_info.physical_address = params.addr;
-
-                for (unsigned y = 0; y < params.height; ++y) {
-                    for (unsigned x = 0; x < params.width; ++x) {
-                        tex_buffer[x + params.width * y] = Pica::DebugUtils::LookupTexture(
-                            texture_src_data, x, params.height - 1 - y, tex_info);
-                    }
-                }
-
-                glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width, params.height,
-                             0, GL_RGBA, GL_UNSIGNED_BYTE, tex_buffer.data());
-            } else {
-                // Depth/Stencil formats need special treatment since they aren't sampleable using
-                // LookupTexture and can't use RGBA format
-                size_t tuple_idx = (size_t)params.pixel_format - 14;
-                ASSERT(tuple_idx < depth_format_tuples.size());
-                const FormatTuple& tuple = depth_format_tuples[tuple_idx];
-
-                u32 bytes_per_pixel = CachedSurface::GetFormatBpp(params.pixel_format) / 8;
-
-                // OpenGL needs 4 bpp alignment for D24 since using GL_UNSIGNED_INT as type
-                bool use_4bpp = (params.pixel_format == PixelFormat::D24);
-
-                u32 gl_bytes_per_pixel = use_4bpp ? 4 : bytes_per_pixel;
-
-                std::vector<u8> temp_fb_depth_buffer(params.width * params.height *
-                                                     gl_bytes_per_pixel);
-
-                u8* temp_fb_depth_buffer_ptr =
-                    use_4bpp ? temp_fb_depth_buffer.data() + 1 : temp_fb_depth_buffer.data();
-
-                MortonCopyPixels(params.pixel_format, params.width, params.height, bytes_per_pixel,
-                                 gl_bytes_per_pixel, texture_src_data, temp_fb_depth_buffer_ptr,
-                                 true);
-
-                glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width, params.height,
-                             0, tuple.format, tuple.type, temp_fb_depth_buffer.data());
-            }
+            const FormatTuple& tuple = format_tuples[(unsigned int)params.pixel_format];
+            std::unique_ptr<Pica::Texture::Codec> tmp = Pica::Texture::CodecFactory::build(
+                // clang-format off
+                params.pixel_format, texture_src_data, params.width, params.height
+                // clang-format on
+                );
+            Pica::Texture::Codec* codec = tmp.get();
+            codec->configTiling(true, 8); // change 8 for 32 in case the mage is tiled
+                                          // on blocks of 32x32
+            codec->configRGBATransform(!native_format[(unsigned int)params.pixel_format]);
+            codec->decode();
+            std::unique_ptr<u8[]> decoded_texture = codec->transferInternalBuffer();
+            u32 bytes = codec->getInternalBytesPerPixel();
+            if (bytes == 3)
+                bytes = 1;
+            else if (bytes != 2)
+                bytes = 4;
+            glPixelStorei(GL_UNPACK_ALIGNMENT, bytes);
+            glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width, params.height, 0,
+                         tuple.format, tuple.type, decoded_texture.get());
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
         }
-
         // If not 1x scale, blit 1x texture to a new scaled texture and replace texture in surface
         if (new_surface->res_scale_width != 1.f || new_surface->res_scale_height != 1.f) {
             OGLTexture scaled_texture;
@@ -430,7 +365,7 @@ CachedSurface* RasterizerCacheOpenGL::GetSurfaceRect(const CachedSurface& params
     }
 
     u32 total_pixels = params.width * params.height;
-    u32 params_size = total_pixels * CachedSurface::GetFormatBpp(params.pixel_format) / 8;
+    u32 params_size = total_pixels * Pica::Texture::Format::GetBpp(params.pixel_format) / 8;
 
     // Attempt to find encompassing surfaces
     CachedSurface* best_subrect_surface = nullptr;
@@ -467,7 +402,7 @@ CachedSurface* RasterizerCacheOpenGL::GetSurfaceRect(const CachedSurface& params
     // Return the best subrect surface if found
     if (best_subrect_surface != nullptr) {
         unsigned int bytes_per_pixel =
-            (CachedSurface::GetFormatBpp(best_subrect_surface->pixel_format) / 8);
+            (Pica::Texture::Format::GetBpp(best_subrect_surface->pixel_format) / 8);
 
         int x0, y0;
 
@@ -521,7 +456,7 @@ CachedSurface* RasterizerCacheOpenGL::GetTextureSurface(
     params.width = info.width;
     params.height = info.height;
     params.is_tiled = true;
-    params.pixel_format = CachedSurface::PixelFormatFromTextureFormat(info.format);
+    params.pixel_format = Pica::Texture::Format::FromTextureFormat(info.format);
     return GetSurface(params, false, true);
 }
 
@@ -574,10 +509,10 @@ RasterizerCacheOpenGL::GetFramebufferSurfaces(const Pica::Regs::FramebufferConfi
     }
 
     color_params.addr = config.GetColorBufferPhysicalAddress();
-    color_params.pixel_format = CachedSurface::PixelFormatFromColorFormat(config.color_format);
+    color_params.pixel_format = Pica::Texture::Format::FromColorFormat(config.color_format);
 
     depth_params.addr = config.GetDepthBufferPhysicalAddress();
-    depth_params.pixel_format = CachedSurface::PixelFormatFromDepthFormat(config.depth_format);
+    depth_params.pixel_format = Pica::Texture::Format::FromDepthFormat(config.depth_format);
 
     MathUtil::Rectangle<int> color_rect;
     CachedSurface* color_surface =
@@ -648,9 +583,9 @@ CachedSurface* RasterizerCacheOpenGL::TryGetFillSurface(const GPU::Regs::MemoryF
             CachedSurface* surface = it2->get();
 
             if (surface->addr == config.GetStartAddress() &&
-                CachedSurface::GetFormatBpp(surface->pixel_format) == bits_per_value &&
+                Pica::Texture::Format::GetBpp(surface->pixel_format) == bits_per_value &&
                 (surface->width * surface->height *
-                 CachedSurface::GetFormatBpp(surface->pixel_format) / 8) ==
+                 Pica::Texture::Format::GetBpp(surface->pixel_format) / 8) ==
                     (config.GetEndAddress() - config.GetStartAddress())) {
                 return surface;
             }
@@ -662,7 +597,6 @@ CachedSurface* RasterizerCacheOpenGL::TryGetFillSurface(const GPU::Regs::MemoryF
 
 MICROPROFILE_DEFINE(OpenGL_SurfaceDownload, "OpenGL", "Surface Download", MP_RGB(128, 192, 64));
 void RasterizerCacheOpenGL::FlushSurface(CachedSurface* surface) {
-    using PixelFormat = CachedSurface::PixelFormat;
     using SurfaceType = CachedSurface::SurfaceType;
 
     if (!surface->dirty) {
@@ -703,53 +637,32 @@ void RasterizerCacheOpenGL::FlushSurface(CachedSurface* surface) {
 
     if (!surface->is_tiled) {
         // TODO: Ensure this will always be a color format, not a depth or other format
-        ASSERT((size_t)surface->pixel_format < fb_format_tuples.size());
-        const FormatTuple& tuple = fb_format_tuples[(unsigned int)surface->pixel_format];
+        // ASSERT((size_t)surface->pixel_format < fb_format_tuples.size());
+        const FormatTuple& tuple = format_tuples[(unsigned int)surface->pixel_format];
 
         glPixelStorei(GL_PACK_ROW_LENGTH, (GLint)surface->pixel_stride);
         glGetTexImage(GL_TEXTURE_2D, 0, tuple.format, tuple.type, dst_buffer);
         glPixelStorei(GL_PACK_ROW_LENGTH, 0);
     } else {
-        SurfaceType type = CachedSurface::GetFormatType(surface->pixel_format);
-        if (type != SurfaceType::Depth && type != SurfaceType::DepthStencil) {
-            ASSERT((size_t)surface->pixel_format < fb_format_tuples.size());
-            const FormatTuple& tuple = fb_format_tuples[(unsigned int)surface->pixel_format];
+        const FormatTuple& tuple = format_tuples[(u32)surface->pixel_format];
+        u32 bytes_per_pixel = Pica::Texture::Format::GetBpp(surface->pixel_format) / 8;
+        if (!native_format[(u32)surface->pixel_format])
+            bytes_per_pixel = 4;
+        std::vector<u8> temp_gl_buffer(surface->width * surface->height * bytes_per_pixel);
+        glGetTexImage(GL_TEXTURE_2D, 0, tuple.format, tuple.type, temp_gl_buffer.data());
 
-            u32 bytes_per_pixel = CachedSurface::GetFormatBpp(surface->pixel_format) / 8;
-
-            std::vector<u8> temp_gl_buffer(surface->width * surface->height * bytes_per_pixel);
-
-            glGetTexImage(GL_TEXTURE_2D, 0, tuple.format, tuple.type, temp_gl_buffer.data());
-
-            // Directly copy pixels. Internal OpenGL color formats are consistent so no conversion
-            // is necessary.
-            MortonCopyPixels(surface->pixel_format, surface->width, surface->height,
-                             bytes_per_pixel, bytes_per_pixel, dst_buffer, temp_gl_buffer.data(),
-                             false);
-        } else {
-            // Depth/Stencil formats need special treatment since they aren't sampleable using
-            // LookupTexture and can't use RGBA format
-            size_t tuple_idx = (size_t)surface->pixel_format - 14;
-            ASSERT(tuple_idx < depth_format_tuples.size());
-            const FormatTuple& tuple = depth_format_tuples[tuple_idx];
-
-            u32 bytes_per_pixel = CachedSurface::GetFormatBpp(surface->pixel_format) / 8;
-
-            // OpenGL needs 4 bpp alignment for D24 since using GL_UNSIGNED_INT as type
-            bool use_4bpp = (surface->pixel_format == PixelFormat::D24);
-
-            u32 gl_bytes_per_pixel = use_4bpp ? 4 : bytes_per_pixel;
-
-            std::vector<u8> temp_gl_buffer(surface->width * surface->height * gl_bytes_per_pixel);
-
-            glGetTexImage(GL_TEXTURE_2D, 0, tuple.format, tuple.type, temp_gl_buffer.data());
-
-            u8* temp_gl_buffer_ptr = use_4bpp ? temp_gl_buffer.data() + 1 : temp_gl_buffer.data();
-
-            MortonCopyPixels(surface->pixel_format, surface->width, surface->height,
-                             bytes_per_pixel, gl_bytes_per_pixel, dst_buffer, temp_gl_buffer_ptr,
-                             false);
-        }
+        std::unique_ptr<Pica::Texture::Codec> tmp = Pica::Texture::CodecFactory::build(
+            // clang-format off
+            surface->pixel_format, temp_gl_buffer.data(), surface->width, surface->height
+            // clang-format on
+            );
+        Pica::Texture::Codec* codec = tmp.get();
+        codec->configTiling(true, 8); // change 8 for 32 in case the mage is tiled
+                                      // on blocks of 32x32
+        codec->configRGBATransform(!native_format[(u32)surface->pixel_format]);
+        codec->configPreConvertedRGBA(!native_format[(u32)surface->pixel_format]);
+        codec->setExternalBuffer(dst_buffer);
+        codec->encode();
     }
 
     surface->dirty = false;

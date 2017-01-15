@@ -1,9 +1,10 @@
+
+#pragma once
+
 #include <iostream>
 #include <memory>
 #include "common/common_types.h"
 #include "video_core/texture/codec.h"
-
-#pragma once
 
 // each texture format codec
 class RGBACodec : public Pica::Texture::Codec {
@@ -13,7 +14,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 8;
+    virtual void setSize() {
+        this->start_nibbles_size = 8;
+    };
 };
 
 class RGBCodec : public Pica::Texture::Codec {
@@ -23,7 +26,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 6;
+    virtual void setSize() {
+        this->start_nibbles_size = 6;
+    };
 };
 
 class RGB5A1Codec : public Pica::Texture::Codec {
@@ -33,7 +38,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 4;
+    virtual void setSize() {
+        this->start_nibbles_size = 4;
+    };
 };
 
 class RGBA4Codec : public Pica::Texture::Codec {
@@ -43,7 +50,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 4;
+    virtual void setSize() {
+        this->start_nibbles_size = 4;
+    };
 };
 
 class RGB565Codec : public Pica::Texture::Codec {
@@ -53,7 +62,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 4;
+    virtual void setSize() {
+        this->start_nibbles_size = 4;
+    };
 };
 
 class RG8Codec : public Pica::Texture::Codec {
@@ -63,7 +74,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 4;
+    virtual void setSize() {
+        this->start_nibbles_size = 4;
+    };
 };
 
 class IA8Codec : public Pica::Texture::Codec {
@@ -73,7 +86,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 4;
+    virtual void setSize() {
+        this->start_nibbles_size = 4;
+    };
 };
 
 class I8Codec : public Pica::Texture::Codec {
@@ -83,7 +98,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 2;
+    virtual void setSize() {
+        this->start_nibbles_size = 2;
+    };
 };
 
 class A8Codec : public Pica::Texture::Codec {
@@ -93,7 +110,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 2;
+    virtual void setSize() {
+        this->start_nibbles_size = 2;
+    };
 };
 
 class IA4Codec : public Pica::Texture::Codec {
@@ -103,7 +122,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 2;
+    virtual void setSize() {
+        this->start_nibbles_size = 2;
+    };
 };
 
 class I4Codec : public Pica::Texture::Codec {
@@ -113,7 +134,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 1;
+    virtual void setSize() {
+        this->start_nibbles_size = 1;
+    };
 };
 
 class A4Codec : public Pica::Texture::Codec {
@@ -123,7 +146,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 1;
+    virtual void setSize() {
+        this->start_nibbles_size = 1;
+    };
 };
 
 class ETC1Codec : public Pica::Texture::Codec {
@@ -133,7 +158,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 1;
+    virtual void setSize() {
+        this->start_nibbles_size = 1;
+    };
 };
 
 class ETC1A4Codec : public Pica::Texture::Codec {
@@ -143,7 +170,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 2;
+    virtual void setSize() {
+        this->start_nibbles_size = 2;
+    };
 };
 
 class D16Codec : public Pica::Texture::Codec {
@@ -153,7 +182,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 4;
+    virtual void setSize() {
+        this->start_nibbles_size = 4;
+    };
 };
 
 class D24Codec : public Pica::Texture::Codec {
@@ -163,7 +194,9 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 6;
+    virtual void setSize() {
+        this->start_nibbles_size = 6;
+    };
 };
 
 class D24S8Codec : public Pica::Texture::Codec {
@@ -173,5 +206,7 @@ public:
     void encode();
 
 protected:
-    const u32 format_size = 8;
+    virtual void setSize() {
+        this->start_nibbles_size = 8;
+    };
 };

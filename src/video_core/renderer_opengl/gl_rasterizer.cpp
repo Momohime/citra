@@ -21,6 +21,7 @@
 #include "video_core/renderer_opengl/gl_shader_util.h"
 #include "video_core/renderer_opengl/pica_to_gl.h"
 #include "video_core/renderer_opengl/renderer_opengl.h"
+#include "video_core/texture/formats.h"
 
 MICROPROFILE_DEFINE(OpenGL_Drawing, "OpenGL", "Drawing", MP_RGB(128, 128, 192));
 MICROPROFILE_DEFINE(OpenGL_Blits, "OpenGL", "Blits", MP_RGB(100, 100, 255));
@@ -716,7 +717,6 @@ void RasterizerOpenGL::FlushAndInvalidateRegion(PAddr addr, u32 size) {
 
 bool RasterizerOpenGL::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransferConfig& config) {
     MICROPROFILE_SCOPE(OpenGL_Blits);
-    using PixelFormat = CachedSurface::PixelFormat;
     using SurfaceType = CachedSurface::SurfaceType;
 
     CachedSurface src_params;
@@ -728,7 +728,7 @@ bool RasterizerOpenGL::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransfe
     // the image, and it allows for smaller texture cache lookup rectangles.
     src_params.height = config.output_height;
     src_params.is_tiled = !config.input_linear;
-    src_params.pixel_format = CachedSurface::PixelFormatFromGPUPixelFormat(config.input_format);
+    src_params.pixel_format = Pica::Texture::Format::FromGPUPixelFormat(config.input_format);
 
     CachedSurface dst_params;
     dst_params.addr = config.GetPhysicalOutputAddress();
@@ -737,7 +737,7 @@ bool RasterizerOpenGL::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransfe
     dst_params.height =
         config.scaling == config.ScaleXY ? config.output_height / 2 : config.output_height.Value();
     dst_params.is_tiled = config.input_linear != config.dont_swizzle;
-    dst_params.pixel_format = CachedSurface::PixelFormatFromGPUPixelFormat(config.output_format);
+    dst_params.pixel_format = Pica::Texture::Format::FromGPUPixelFormat(config.output_format);
 
     MathUtil::Rectangle<int> src_rect;
     CachedSurface* src_surface = res_cache.GetSurfaceRect(src_params, false, true, src_rect);
@@ -776,7 +776,7 @@ bool RasterizerOpenGL::AccelerateDisplayTransfer(const GPU::Regs::DisplayTransfe
     }
 
     u32 dst_size = dst_params.width * dst_params.height *
-                   CachedSurface::GetFormatBpp(dst_params.pixel_format) / 8;
+                   Pica::Texture::Format::GetBpp(dst_params.pixel_format) / 8;
     dst_surface->dirty = true;
     res_cache.FlushRegion(config.GetPhysicalOutputAddress(), dst_size, dst_surface, true);
     return true;
@@ -789,7 +789,6 @@ bool RasterizerOpenGL::AccelerateTextureCopy(const GPU::Regs::DisplayTransferCon
 
 bool RasterizerOpenGL::AccelerateFill(const GPU::Regs::MemoryFillConfig& config) {
     MICROPROFILE_SCOPE(OpenGL_Blits);
-    using PixelFormat = CachedSurface::PixelFormat;
     using SurfaceType = CachedSurface::SurfaceType;
 
     CachedSurface* dst_surface = res_cache.TryGetFillSurface(config);
@@ -824,7 +823,7 @@ bool RasterizerOpenGL::AccelerateFill(const GPU::Regs::MemoryFillConfig& config)
 
         if (config.fill_24bit) {
             switch (dst_surface->pixel_format) {
-            case PixelFormat::RGB8:
+            case Pica::Texture::Format::Type::RGB8:
                 color_values[0] = config.value_24bit_r / 255.0f;
                 color_values[1] = config.value_24bit_g / 255.0f;
                 color_values[2] = config.value_24bit_b / 255.0f;
@@ -836,7 +835,7 @@ bool RasterizerOpenGL::AccelerateFill(const GPU::Regs::MemoryFillConfig& config)
             u32 value = config.value_32bit;
 
             switch (dst_surface->pixel_format) {
-            case PixelFormat::RGBA8:
+            case Pica::Texture::Format::Type::RGBA8:
                 color_values[0] = (value >> 24) / 255.0f;
                 color_values[1] = ((value >> 16) & 0xFF) / 255.0f;
                 color_values[2] = ((value >> 8) & 0xFF) / 255.0f;
@@ -850,34 +849,34 @@ bool RasterizerOpenGL::AccelerateFill(const GPU::Regs::MemoryFillConfig& config)
             Math::Vec4<u8> color;
 
             switch (dst_surface->pixel_format) {
-            case PixelFormat::RGBA8:
+            case Pica::Texture::Format::Type::RGBA8:
                 color_values[0] = (value_16bit >> 8) / 255.0f;
                 color_values[1] = (value_16bit & 0xFF) / 255.0f;
                 color_values[2] = color_values[0];
                 color_values[3] = color_values[1];
                 break;
-            case PixelFormat::RGB5A1:
+            case Pica::Texture::Format::Type::RGB5A1:
                 color = Color::DecodeRGB5A1((const u8*)&value_16bit);
                 color_values[0] = color[0] / 31.0f;
                 color_values[1] = color[1] / 31.0f;
                 color_values[2] = color[2] / 31.0f;
                 color_values[3] = color[3];
                 break;
-            case PixelFormat::RGB565:
+            case Pica::Texture::Format::Type::RGB565:
                 color = Color::DecodeRGB565((const u8*)&value_16bit);
                 color_values[0] = color[0] / 31.0f;
                 color_values[1] = color[1] / 63.0f;
                 color_values[2] = color[2] / 31.0f;
                 break;
-            case PixelFormat::RGBA4:
+            case Pica::Texture::Format::Type::RGBA4:
                 color = Color::DecodeRGBA4((const u8*)&value_16bit);
                 color_values[0] = color[0] / 15.0f;
                 color_values[1] = color[1] / 15.0f;
                 color_values[2] = color[2] / 15.0f;
                 color_values[3] = color[3] / 15.0f;
                 break;
-            case PixelFormat::IA8:
-            case PixelFormat::RG8:
+            case Pica::Texture::Format::Type::IA8:
+            case Pica::Texture::Format::Type::RG8:
                 color_values[0] = (value_16bit >> 8) / 255.0f;
                 color_values[1] = (value_16bit & 0xFF) / 255.0f;
                 break;
@@ -899,9 +898,9 @@ bool RasterizerOpenGL::AccelerateFill(const GPU::Regs::MemoryFillConfig& config)
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
 
         GLfloat value_float;
-        if (dst_surface->pixel_format == CachedSurface::PixelFormat::D16) {
+        if (dst_surface->pixel_format == Pica::Texture::Format::Type::D16) {
             value_float = config.value_32bit / 65535.0f; // 2^16 - 1
-        } else if (dst_surface->pixel_format == CachedSurface::PixelFormat::D24) {
+        } else if (dst_surface->pixel_format == Pica::Texture::Format::Type::D24) {
             value_float = config.value_32bit / 16777215.0f; // 2^24 - 1
         }
 
@@ -945,7 +944,7 @@ bool RasterizerOpenGL::AccelerateDisplay(const GPU::Regs::FramebufferConfig& con
     src_params.height = config.height;
     src_params.pixel_stride = pixel_stride;
     src_params.is_tiled = false;
-    src_params.pixel_format = CachedSurface::PixelFormatFromGPUPixelFormat(config.color_format);
+    src_params.pixel_format = Pica::Texture::Format::FromGPUPixelFormat(config.color_format);
 
     MathUtil::Rectangle<int> src_rect;
     CachedSurface* src_surface = res_cache.GetSurfaceRect(src_params, false, true, src_rect);

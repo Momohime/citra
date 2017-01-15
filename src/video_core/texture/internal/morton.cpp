@@ -2,8 +2,8 @@
 #include <memory>
 #include <utility>
 #include "common/common_types.h"
-#include "morton.h"
-#include "texture_utils.h"
+#include "video_core/texture/internal/morton.h"
+#include "video_core/texture/internal/texture_utils.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // Optimizations
@@ -15,6 +15,8 @@
 // favor fast code over small code.
 #pragma optimize("t", on)
 #pragma intrinsic(memcpy)
+#define __hot
+#define __no_inline __declspec(noinline)
 #elif defined(CLANG_OR_GCC)
 // The next 3 will swizle memory copying to help find the best sse/avx shuffling
 // in case it's possible. Compilation tests have proven effective use of these
@@ -22,12 +24,20 @@
 #pragma GCC optimize("-fpredictive-commoning")
 #pragma GCC optimize("-ftree-loop-distribute-patterns")
 #pragma GCC optimize("-ftree-vectorize")
-// limit inlining
-#pragma GCC option("--param max-inline-insns-single=128")
-
+#pragma GCC option("--param inline-unit-growth=400")
+#pragma GCC option("--param large-function-growth=800")
 // The beauty of these compiler options is that they generate better code than
 // hand written intrinsics, since inline expanding memeory transfers can be pattern
 // matched with vector instructions available in the target.
+#define __no_inline __attribute__((noinline))
+#define __hot __attribute__((hot))
+#if !defined(__forceinline)
+#define __forceinline attribute__((always_inline))
+#endif
+#else
+#define __hot
+#define __no_inline
+#define __forceinline
 #endif
 
 #pragma region Z_Order
@@ -54,11 +64,11 @@ constexpr u32 isBottom(u32 block_index) {
 }
 
 template <void codec(u8*, u8*, size_t), size_t nibbles, u32 blocks, size_t block_size>
-inline void swizzle_block(u8*& morton_block, u8* linear_block);
+__forceinline static void swizzle_block(u8*& morton_block, u8* linear_block);
 
 template <void codec(u8*, u8*, size_t), size_t nibbles, u32 block_index, u32 blocks,
           size_t block_size>
-inline void swizzle_block_aux(u8*& morton_block, u8* linear_block) {
+__forceinline static void swizzle_block_aux(u8*& morton_block, u8* linear_block) {
     // move the linear_block pointer to the appropiate block
     const size_t right = isRight(block_index) * (blocks * nibbles) / 2;
     const size_t down = isBottom(block_index) * block_size;
@@ -67,7 +77,7 @@ inline void swizzle_block_aux(u8*& morton_block, u8* linear_block) {
 }
 
 template <void codec(u8*, u8*, size_t), size_t nibbles, u32 blocks, size_t block_size>
-inline void swizzle_block(u8*& morton_block, u8* linear_block) {
+__forceinline static void swizzle_block(u8*& morton_block, u8* linear_block) {
     const size_t new_block_size = block_size / 2;
     if (blocks <= 2) {
         // We handle 2*2 blocks on z-order
@@ -94,14 +104,14 @@ inline void swizzle_block(u8*& morton_block, u8* linear_block) {
 }
 
 template <void codec(u8*, u8*, size_t), size_t nibbles, size_t lines_per_block>
-void swizzle_pass(u8* morton_block, u8* linear_block) {
+__forceinline static void swizzle_pass(u8* morton_block, u8* linear_block) {
     const size_t block_size = (lines_per_block * lines_per_block * nibbles) / 2;
     swizzle_block<codec, nibbles, lines_per_block, block_size>(morton_block, linear_block);
 }
 #pragma endregion Z_Order
 
 template <size_t nibbles, size_t lines_per_block>
-void encode_pass(u8* morton_buffer, u8* linear_buffer, u32 x_blocks) {
+__hot inline static void encode_pass(u8* morton_buffer, u8* linear_buffer, u32 x_blocks) {
     const u32 tile_size = (lines_per_block * lines_per_block * nibbles) / 2;
     alignas(64) u8 tmp[tile_size];
     tiling_pass<&encode, nibbles, lines_per_block>(linear_buffer, tmp, x_blocks);
@@ -109,7 +119,7 @@ void encode_pass(u8* morton_buffer, u8* linear_buffer, u32 x_blocks) {
 }
 
 template <size_t nibbles, size_t lines_per_block>
-void decode_pass(u8* morton_buffer, u8* linear_buffer, u32 x_blocks) {
+__hot inline static void decode_pass(u8* morton_buffer, u8* linear_buffer, u32 x_blocks) {
     const u32 tile_size = (lines_per_block * lines_per_block * nibbles) / 2;
     alignas(64) u8 tmp[tile_size];
     swizzle_pass<&decode, nibbles, lines_per_block>(morton_buffer, tmp);
@@ -117,7 +127,7 @@ void decode_pass(u8* morton_buffer, u8* linear_buffer, u32 x_blocks) {
 }
 
 template <void codec(u8*, u8*, u32), size_t nibbles, size_t lines_per_block>
-void morton_pass(u8* morton_buffer, u8* matrix_buffer, u32 width, u32 height) {
+__hot static void morton_pass(u8* morton_buffer, u8* matrix_buffer, u32 width, u32 height) {
     const u32 x_blocks = (width / lines_per_block);
     const u32 y_blocks = (height / lines_per_block);
     const size_t line_size = (lines_per_block * nibbles) / 2;
@@ -135,9 +145,22 @@ void morton_pass(u8* morton_buffer, u8* matrix_buffer, u32 width, u32 height) {
     }
 }
 
+// keep hot code together
+__no_inline __hot static void morton_8x8_32(u8* morton_buffer, u8* matrix_buffer, u32 width,
+                                            u32 height, bool decode) {
+    if (decode)
+        morton_pass<&decode_pass<8, 8>, 8, 8>(morton_buffer, matrix_buffer, width, height);
+    else
+        morton_pass<&encode_pass<8, 8>, 8, 8>(morton_buffer, matrix_buffer, width, height);
+}
+
 namespace Decoders {
 
 bool Morton_8x8(u8* morton_buffer, u8* matrix_buffer, u32 width, u32 height, u32 bpp) {
+    if (bpp == 32) {
+        morton_8x8_32(morton_buffer, matrix_buffer, width, height, true);
+        return true;
+    }
     switch (bpp) {
     case 4: {
         morton_pass<&decode_pass<1, 8>, 1, 8>(morton_buffer, matrix_buffer, width, height);
@@ -156,11 +179,6 @@ bool Morton_8x8(u8* morton_buffer, u8* matrix_buffer, u32 width, u32 height, u32
     }
     case 24: {
         morton_pass<&decode_pass<6, 8>, 6, 8>(morton_buffer, matrix_buffer, width, height);
-        return true;
-        break;
-    }
-    case 32: {
-        morton_pass<&decode_pass<8, 8>, 8, 8>(morton_buffer, matrix_buffer, width, height);
         return true;
         break;
     }
@@ -209,6 +227,10 @@ bool Morton_32x32(u8* morton_buffer, u8* matrix_buffer, u32 width, u32 height, u
 namespace Encoders {
 
 bool Morton_8x8(u8* morton_buffer, u8* matrix_buffer, u32 width, u32 height, u32 bpp) {
+    if (bpp == 32) {
+        morton_8x8_32(morton_buffer, matrix_buffer, width, height, false);
+        return true;
+    }
     switch (bpp) {
     case 4: {
         morton_pass<&encode_pass<1, 8>, 1, 8>(morton_buffer, matrix_buffer, width, height);
@@ -227,11 +249,6 @@ bool Morton_8x8(u8* morton_buffer, u8* matrix_buffer, u32 width, u32 height, u32
     }
     case 24: {
         morton_pass<&encode_pass<6, 8>, 6, 8>(morton_buffer, matrix_buffer, width, height);
-        return true;
-        break;
-    }
-    case 32: {
-        morton_pass<&encode_pass<8, 8>, 8, 8>(morton_buffer, matrix_buffer, width, height);
         return true;
         break;
     }

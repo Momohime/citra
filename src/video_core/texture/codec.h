@@ -1,9 +1,10 @@
+
+#pragma once
+
 #include <iostream>
 #include <memory>
 #include "common/common_types.h"
-#include "formats.h"
-
-#pragma once
+#include "video_core/texture/formats.h"
 
 namespace Pica {
 
@@ -16,18 +17,23 @@ public:
         this->target_buffer = target;
         this->setWidth(width);
         this->setHeight(height);
-        this->setSize();
-        this->expected_nibbles_size = this->start_nibbles_size;
     }
     virtual ~Codec() {}
 
     virtual void decode();
     virtual void encode();
 
-    void setSize();
+    inline void setWidth(u32 width) {
+        this->width = width;
+    }
 
-    void setWidth(u32 width);
-    void setHeight(u32 height);
+    inline void setHeight(u32 height) {
+        this->height = height;
+    }
+
+    inline u32 getInternalBytesPerPixel() {
+        return this->expected_nibbles_size / 2;
+    }
 
     // Common Passes
     void configTiling(bool active, u32 tiling);
@@ -54,7 +60,10 @@ protected:
 
     u32 start_nibbles_size;
     u32 expected_nibbles_size;
-    const u32 format_size = 8;
+
+    virtual void setSize() {
+        this->start_nibbles_size = 8;
+    };
 
     u8* target_buffer;                     // Initial read buffer
     u8* passing_buffer;                    // pointer aliasing: Used and modified by passes
@@ -65,12 +74,12 @@ protected:
 
     typedef Codec super;
 
-    inline void decode_morton_pass();
-    inline void encode_morton_pass();
+    void decode_morton_pass();
+    void encode_morton_pass();
 };
 
 namespace CodecFactory {
-std::unique_ptr<Codec> build(Pica::Texture::Format format, u8* target, u32 width, u32 height);
+std::unique_ptr<Codec> build(Pica::Texture::Format::Type format, u8* target, u32 width, u32 height);
 };
 
 } // Texture
