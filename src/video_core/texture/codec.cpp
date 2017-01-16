@@ -13,13 +13,13 @@ void Codec::decode() {
     this->init(true);
     if (this->morton)
         this->decode_morton_pass();
-};
+}
 
 void Codec::encode() {
     this->init(false);
     if (this->morton)
         this->encode_morton_pass();
-};
+}
 
 void Codec::configTiling(bool active, u32 tiling) {
     this->morton = true;
@@ -66,14 +66,39 @@ void Codec::init(bool decode) {
         if (!this->raw_RGBA)
             this->expected_nibbles_size = this->start_nibbles_size;
     }
-    if (!this->external_result_buffer) {
+    this->validate();
+    if (!this->external_result_buffer || !this->invalid()) {
         size_t buff_size = this->width * this->height * this->expected_nibbles_size / 2;
         this->internal_buffer = std::make_unique<u8[]>(buff_size);
         this->passing_buffer = this->internal_buffer.get();
     }
 }
 
-void Codec::decode_morton_pass() {
+void Codec::validate() {
+    if (this->width < 8) {
+        this->invalid_state = true;
+        return;
+    }
+    if (this->height < 8) {
+        this->invalid_state = true;
+        return;
+    }
+    if (this->target_buffer == nullptr) {
+        this->invalid_state = true;
+        return;
+    }
+    if (this->external_result_buffer && this->passing_buffer == nullptr) {
+        this->invalid_state = true;
+        return;
+    }
+    if (this->morton && this->morton_pass_tiling != 8 && this->morton_pass_tiling != 32) {
+        this->invalid_state = true;
+        return;
+    }
+    this->invalid_state = false;
+}
+
+inline void Codec::decode_morton_pass() {
     if (this->morton_pass_tiling == 8)
         Decoders::Morton_8x8(this->target_buffer, this->passing_buffer, this->width, this->height,
                              this->start_nibbles_size * 4);
@@ -82,7 +107,7 @@ void Codec::decode_morton_pass() {
                                this->start_nibbles_size * 4);
 }
 
-void Codec::encode_morton_pass() {
+inline void Codec::encode_morton_pass() {
     if (this->morton_pass_tiling == 8)
         Encoders::Morton_8x8(this->target_buffer, this->passing_buffer, this->width, this->height,
                              this->start_nibbles_size * 4);

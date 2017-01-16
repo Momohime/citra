@@ -43,6 +43,7 @@ public:
     void setExternalBuffer(u8* external);
     std::unique_ptr<u8[]> transferInternalBuffer();
 
+    virtual void validate();
     bool invalid();
 
 protected:
@@ -74,8 +75,8 @@ protected:
 
     typedef Codec super;
 
-    void decode_morton_pass();
-    void encode_morton_pass();
+    inline void decode_morton_pass();
+    inline void encode_morton_pass();
 };
 
 namespace CodecFactory {
