@@ -309,17 +309,24 @@ CachedSurface* RasterizerCacheOpenGL::GetSurface(const CachedSurface& params, bo
             codec->configTiling(true, 8); // change 8 for 32 in case the mage is tiled
                                           // on blocks of 32x32
             codec->configRGBATransform(!native_format[(unsigned int)params.pixel_format]);
-            codec->decode();
-            std::unique_ptr<u8[]> decoded_texture = codec->transferInternalBuffer();
-            u32 bytes = codec->getInternalBytesPerPixel();
-            if (bytes == 3)
-                bytes = 1;
-            else if (bytes != 2)
-                bytes = 4;
-            glPixelStorei(GL_UNPACK_ALIGNMENT, bytes);
-            glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width, params.height, 0,
-                         tuple.format, tuple.type, decoded_texture.get());
-            glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+            codec->validate();
+            if (!codec->invalid()) {
+                codec->decode();
+                std::unique_ptr<u8[]> decoded_texture = codec->transferInternalBuffer();
+                u32 bytes = codec->getInternalBytesPerPixel();
+                if (bytes == 3)
+                    bytes = 1;
+                else if (bytes != 2)
+                    bytes = 4;
+                glPixelStorei(GL_UNPACK_ALIGNMENT, bytes);
+                glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width, params.height,
+                             0, tuple.format, tuple.type, decoded_texture.get());
+                glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+            } else {
+                LOG_WARNING(Render_OpenGL,
+                            "Invalid texture sent to renderer; width: %d height %d type: %d",
+                            params.width, params.height, (unsigned int)params.pixel_format);
+            }
         }
         // If not 1x scale, blit 1x texture to a new scaled texture and replace texture in surface
         if (new_surface->res_scale_width != 1.f || new_surface->res_scale_height != 1.f) {
@@ -662,7 +669,13 @@ void RasterizerCacheOpenGL::FlushSurface(CachedSurface* surface) {
         codec->configRGBATransform(!native_format[(u32)surface->pixel_format]);
         codec->configPreConvertedRGBA(!native_format[(u32)surface->pixel_format]);
         codec->setExternalBuffer(dst_buffer);
-        codec->encode();
+        codec->validate();
+        if (!codec->invalid())
+            codec->encode();
+        else
+            LOG_WARNING(Render_OpenGL,
+                        "Invalid texture sent to renderer; width: %d height %d type: %d",
+                        surface->width, surface->height, (unsigned int)surface->pixel_format);
     }
 
     surface->dirty = false;
