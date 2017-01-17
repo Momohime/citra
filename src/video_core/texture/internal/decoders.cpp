@@ -83,9 +83,9 @@ inline u32 build_luminance(u32 intensity, u32 alpha) {
 }
 
 inline void intensity_alpha_pass(u8* read, u8* write) {
-    alignas(4) u8 pixel[2];
-    std::memcpy(pixel, read, 2);
-    u32 result = build_luminance(pixel[1], pixel[0]);
+    u16 pixel;
+    std::memcpy(&pixel, read, 2);
+    u32 result = build_luminance(pixel >> 8, pixel & 0x00FF);
     std::memcpy(write, &result, 4);
 }
 
@@ -93,9 +93,7 @@ inline void intensity_alpha_nibbles_pass(u8* read, u8* write) {
     alignas(4) u8 pixel;
     std::memcpy(&pixel, read, 1);
     u16 tmp = convert_nibbles(pixel);
-    u8 tmp2[2];
-    std::memcpy(tmp2, &tmp, 2);
-    u32 result = build_luminance(tmp2[1], tmp2[0]);
+    u32 result = build_luminance(tmp >> 8, tmp & 0x00FF);
     std::memcpy(write, &result, 4);
 }
 
@@ -107,31 +105,29 @@ inline void intensity_pass(u8* read, u8* write) {
 }
 
 inline void intensity_nibbles_pass(u8* read, u8* write) {
-    alignas(4) u8 pixel[2];
-    std::memcpy(pixel, read, 1);
-    u16 tmp = convert_nibbles(pixel[0]);
-    std::memcpy(pixel, &tmp, 2);
-    u32 result = build_luminance(pixel[1], 255);
+    u8 pixel;
+    std::memcpy(&pixel, read, 1);
+    u16 tmp = convert_nibbles(pixel);
+    u32 result = build_luminance(tmp & 0x00FF, 255);
     std::memcpy(write, &result, 4);
-    result = build_luminance(pixel[0], 255);
+    result = build_luminance(tmp >> 8, 255);
     std::memcpy(write + 4, &result, 4);
 }
 
 inline void alpha_pass(u8* read, u8* write) {
-    alignas(4) u8 pixel[1];
-    std::memcpy(pixel, read, 1);
-    u32 result = build_luminance(0, pixel[0]);
+    u8 pixel;
+    std::memcpy(&pixel, read, 1);
+    u32 result = build_luminance(0, pixel);
     std::memcpy(write, &result, 4);
 }
 
 inline void alpha_nibbles_pass(u8* read, u8* write) {
-    alignas(4) u8 pixel[2];
-    std::memcpy(pixel, read, 1);
-    u16 tmp = convert_nibbles(pixel[0]);
-    std::memcpy(pixel, &tmp, 2);
-    u32 result = build_luminance(0, pixel[0]);
+    u8 pixel;
+    std::memcpy(&pixel, read, 1);
+    u16 tmp = convert_nibbles(pixel);
+    u32 result = build_luminance(0, tmp & 0x00FF);
     std::memcpy(write, &result, 4);
-    result = build_luminance(0, pixel[1]);
+    result = build_luminance(0, tmp >> 8);
     std::memcpy(write + 4, &result, 4);
 }
 
@@ -207,7 +203,7 @@ void ETC1A4Codec::decode() {
     ETC1A4(this->target_buffer, this->passing_buffer, this->width, this->height);
 }
 
-namespace {
+namespace Decode {
 
 inline void expand_depth16_pass(u8* read, u8* write) {
     alignas(4) u8 pixel[4];
@@ -224,11 +220,18 @@ inline void expand_depth24_pass(u8* read, u8* write) {
     std::memcpy(write, pixel, 4);
 }
 
-inline void fix_stencil_pass(u8* read, u8* write) {
-    u32 pixel;
-    std::memcpy(&pixel, read, 4);
-    pixel = (pixel << 8) | (pixel >> 24);
-    std::memcpy(write, &pixel, 4);
+inline void d24s8_pass(u8* target, u32 width, u32 height) {
+    const size_t sub_iters = 8;
+    const size_t iters = width * height / sub_iters;
+    for (u32 i = 0; i < iters; i++) {
+        for (u32 j = 0; j < sub_iters; j++) {
+            u32 pixel;
+            std::memcpy(&pixel, target, 4);
+            pixel = (pixel >> 24) | (pixel << 8);
+            std::memcpy(target, &pixel, 4);
+            target += 4;
+        }
+    }
 }
 
 } // Anonymous
@@ -236,7 +239,7 @@ inline void fix_stencil_pass(u8* read, u8* write) {
 void D16Codec::decode() {
     super::decode();
     if (this->raw_RGBA)
-        image_pass<&expand_depth16_pass, 4, 8>(
+        image_pass<&Decode::expand_depth16_pass, 4, 8>(
             // clang-format off
             this->passing_buffer, this->width, this->height
             // clang-format on
@@ -246,7 +249,7 @@ void D16Codec::decode() {
 void D24Codec::decode() {
     super::decode();
     if (this->raw_RGBA)
-        image_pass<&expand_depth24_pass, 6, 8>(
+        image_pass<&Decode::expand_depth24_pass, 6, 8>(
             // clang-format off
             this->passing_buffer, this->width, this->height
             // clang-format on
@@ -256,9 +259,5 @@ void D24Codec::decode() {
 void D24S8Codec::decode() {
     super::decode();
     if (this->raw_RGBA)
-        image_pass<&fix_stencil_pass, 8, 8, 8>(
-            // clang-format off
-            this->passing_buffer, this->width, this->height
-            // clang-format on
-            );
+        Decode::d24s8_pass(this->passing_buffer, this->width, this->height);
 }

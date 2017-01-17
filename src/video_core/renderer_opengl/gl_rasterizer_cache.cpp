@@ -26,6 +26,9 @@
 #include "video_core/utils.h"
 #include "video_core/video_core.h"
 
+#define TEXTURE_CACHE_SIZE (1024 * 1024 * 8) // 8MB inner cache for decoding/encoding
+alignas(64) static u8 TextureCache[TEXTURE_CACHE_SIZE];
+
 struct FormatTuple {
     GLint internal_format;
     GLenum format;
@@ -39,7 +42,7 @@ static const std::array<FormatTuple, 18> format_tuples = {{
     {GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},                  // RGB565
     {GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4},                // RGBA4
     {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // IA8
-    {GL_RG8, GL_RG8, GL_UNSIGNED_BYTE},                            // RG8
+    {GL_RG8, GL_RG, GL_UNSIGNED_BYTE},                             // RG8
     {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // I8
     {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // A8
     {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE},                         // IA4
@@ -70,7 +73,7 @@ static const std::array<bool, 18> native_format = {
     false, // ETC1A4
     true,  // D16
     false,
-    false, // D24
+    true,  // D24
     false, // D24S8
 };
 
@@ -306,26 +309,29 @@ CachedSurface* RasterizerCacheOpenGL::GetSurface(const CachedSurface& params, bo
                 // clang-format on
                 );
             Pica::Texture::Codec* codec = tmp.get();
-            codec->configTiling(true, 8); // change 8 for 32 in case the mage is tiled
+            codec->configTiling(true, 8); // change 8 for 32 in case the image is tiled
                                           // on blocks of 32x32
             codec->configRGBATransform(!native_format[(unsigned int)params.pixel_format]);
             codec->validate();
             if (!codec->invalid()) {
-                codec->decode();
-                std::unique_ptr<u8[]> decoded_texture = codec->transferInternalBuffer();
-                u32 bytes = codec->getInternalBytesPerPixel();
-                if (bytes == 3)
-                    bytes = 1;
-                else if (bytes != 2)
-                    bytes = 4;
-                glPixelStorei(GL_UNPACK_ALIGNMENT, bytes);
-                glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width, params.height,
-                             0, tuple.format, tuple.type, decoded_texture.get());
-                glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+                u32 estimated_size =
+                    params.width * params.height * codec->getInternalBytesPerPixel();
+                if (estimated_size <= TEXTURE_CACHE_SIZE) {
+                    codec->setExternalBuffer(TextureCache);
+                    codec->decode();
+                    glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width,
+                                 params.height, 0, tuple.format, tuple.type, TextureCache);
+                } else {
+                    codec->decode();
+                    std::unique_ptr<u8[]> decoded_texture = codec->transferInternalBuffer();
+                    glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width,
+                                 params.height, 0, tuple.format, tuple.type, decoded_texture.get());
+                }
             } else {
                 LOG_WARNING(Render_OpenGL,
                             "Invalid texture sent to renderer; width: %d height %d type: %d",
                             params.width, params.height, (unsigned int)params.pixel_format);
+                return nullptr;
             }
         }
         // If not 1x scale, blit 1x texture to a new scaled texture and replace texture in surface
@@ -652,15 +658,22 @@ void RasterizerCacheOpenGL::FlushSurface(CachedSurface* surface) {
         glPixelStorei(GL_PACK_ROW_LENGTH, 0);
     } else {
         const FormatTuple& tuple = format_tuples[(u32)surface->pixel_format];
-        u32 bytes_per_pixel = Pica::Texture::Format::GetBpp(surface->pixel_format) / 8;
+        u32 bits_per_pixel = Pica::Texture::Format::GetBpp(surface->pixel_format);
         if (!native_format[(u32)surface->pixel_format])
-            bytes_per_pixel = 4;
-        std::vector<u8> temp_gl_buffer(surface->width * surface->height * bytes_per_pixel);
-        glGetTexImage(GL_TEXTURE_2D, 0, tuple.format, tuple.type, temp_gl_buffer.data());
-
+            bits_per_pixel = 32;
+        u32 size = surface->width * surface->height * bits_per_pixel / 8;
+        std::vector<u8> temp_gl_buffer;
+        u8* temporal_buffer;
+        if (size <= TEXTURE_CACHE_SIZE)
+            temporal_buffer = TextureCache;
+        else {
+            temp_gl_buffer.resize(size);
+            temporal_buffer = temp_gl_buffer.data();
+        }
+        glGetTexImage(GL_TEXTURE_2D, 0, tuple.format, tuple.type, temporal_buffer);
         std::unique_ptr<Pica::Texture::Codec> tmp = Pica::Texture::CodecFactory::build(
             // clang-format off
-            surface->pixel_format, temp_gl_buffer.data(), surface->width, surface->height
+            surface->pixel_format, temporal_buffer, surface->width, surface->height
             // clang-format on
             );
         Pica::Texture::Codec* codec = tmp.get();

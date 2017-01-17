@@ -69,11 +69,18 @@ inline void contract_depth24_pass(u8* read, u8* write) {
     std::memcpy(write, pixel, 3);
 }
 
-inline void fix_stencil_pass(u8* read, u8* write) {
-    u32 pixel;
-    std::memcpy(&pixel, read, 4);
-    pixel = (pixel >> 24) | (pixel << 8);
-    std::memcpy(write, &pixel, 4);
+inline void d24s8_pass(u8* target, u32 width, u32 height) {
+    const size_t sub_iters = 8;
+    const size_t iters = width * height / sub_iters;
+    for (u32 i = 0; i < iters; i++) {
+        for (u32 j = 0; j < sub_iters; j++) {
+            u32 pixel;
+            std::memcpy(&pixel, target, 4);
+            pixel = (pixel >> 8) | (pixel << 24);
+            std::memcpy(target, &pixel, 4);
+            target += 4;
+        }
+    }
 }
 
 } // Anonymous
@@ -101,9 +108,5 @@ void D24Codec::encode() {
 void D24S8Codec::encode() {
     super::encode();
     if (this->raw_RGBA)
-        image_pass<&Encode::fix_stencil_pass, 8, 8, 8>(
-            // clang-format off
-            this->passing_buffer, this->width, this->height
-            // clang-format on
-            );
+        Encode::d24s8_pass(this->passing_buffer, this->width, this->height);
 }

@@ -5,6 +5,7 @@
 #include <memory>
 #include "common/common_types.h"
 #include "video_core/texture/codec.h"
+#include "video_core/texture/formats.h"
 
 // each texture format codec
 class RGBACodec : public Pica::Texture::Codec {
@@ -15,7 +16,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 8;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::RGBA8
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -27,7 +32,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 6;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::RGB8
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -39,7 +48,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 4;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::RGB5A1
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -51,7 +64,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 4;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::RGBA4
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -63,7 +80,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 4;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::RGB565
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -75,7 +96,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 4;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::RG8
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -87,7 +112,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 4;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::IA8
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -99,7 +128,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 2;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::I8
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -111,7 +144,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 2;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::A8
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -123,7 +160,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 2;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::IA4
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -135,7 +176,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 1;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::I4
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -147,7 +192,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 1;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::A4
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -159,7 +208,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 1;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::ETC1
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -171,7 +224,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 2;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::ETC1A4
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -183,7 +240,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 4;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::D16
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -195,7 +256,11 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 6;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::D24
+        ) / 4;
+        // clang-format on
     };
 };
 
@@ -207,6 +272,10 @@ public:
 
 protected:
     virtual void setSize() {
-        this->start_nibbles_size = 8;
+        // clang-format off
+        this->start_nibbles_size = Pica::Texture::Format::GetBpp(
+            Pica::Texture::Format::Type::D24S8
+        ) / 4;
+        // clang-format on
     };
 };

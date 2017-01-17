@@ -16,6 +16,7 @@
 #ifdef _MSC_VER
 #pragma inline_recursion(on)
 #elif defined(CLANG_OR_GCC)
+#pragma GCC push_options
 #pragma GCC optimize("-fpeel-loops")
 #pragma GCC optimize("-fpredictive-commoning")
 #pragma GCC optimize("-ftree-loop-distribute-patterns")
@@ -74,24 +75,6 @@ inline void image_pass(u8* target, u32 width, u32 height) {
         image_pass_aux_rev<pass, read_size, write_size, tuning>(target, width, height);
 }
 
-template <void codec(u8*, u8*, size_t), size_t nibbles, size_t lines_per_block>
-void tiling_pass(u8* linear, u8* tiled, u32 x_blocks) {
-    const size_t tiled_line_size = (lines_per_block * nibbles) / 2;
-    const size_t row_length = x_blocks * tiled_line_size;
-    for (u32 i = 0; i < lines_per_block; i++) {
-        const u32 k = (lines_per_block - 1 - i);
-        const size_t tiled_index = i * tiled_line_size;
-        const size_t linear_index = k * row_length;
-        codec(tiled + tiled_index, linear + linear_index, tiled_line_size);
-    }
-}
-
-// @param read_size is the amount of bytes each pixel takes
-inline void decode(u8* morton_pointer, u8* matrix_pointer, size_t read_size) {
-    std::memcpy(matrix_pointer, morton_pointer, read_size);
-}
-
-// @param read_size is the amount of bytes each pixel takes
-inline void encode(u8* morton_pointer, u8* matrix_pointer, size_t read_size) {
-    std::memcpy(morton_pointer, matrix_pointer, read_size);
-}
+#if defined(CLANG_OR_GCC)
+#pragma GCC pop_options
+#endif

@@ -40,7 +40,7 @@ struct Format {
         Invalid = 255,
     };
 
-    static u32 GetBpp(Type format) {
+    static const u32 GetBpp(Type format) {
         static const std::array<unsigned int, 18> bpp_table = {
             32, // RGBA8
             24, // RGB8
@@ -66,19 +66,19 @@ struct Format {
         return bpp_table[(u32)format];
     }
 
-    static Type FromTextureFormat(Regs::TextureFormat format) {
+    static constexpr Type FromTextureFormat(Regs::TextureFormat format) {
         return ((unsigned int)format < 14) ? (Type)format : Type::Invalid;
     }
 
-    static Type FromColorFormat(Regs::ColorFormat format) {
+    static constexpr Type FromColorFormat(Regs::ColorFormat format) {
         return ((unsigned int)format < 5) ? (Type)format : Type::Invalid;
     }
 
-    static Type FromDepthFormat(Regs::DepthFormat format) {
+    static constexpr Type FromDepthFormat(Regs::DepthFormat format) {
         return ((unsigned int)format < 4) ? (Type)((unsigned int)format + 14) : Type::Invalid;
     }
 
-    static Type FromGPUPixelFormat(GPU::Regs::PixelFormat format) {
+    static const Type FromGPUPixelFormat(GPU::Regs::PixelFormat format) {
         switch (format) {
         // RGB565 and RGB5A1 are switched in PixelFormat compared to ColorFormat
         case GPU::Regs::PixelFormat::RGB565:
@@ -91,6 +91,17 @@ struct Format {
     }
 
 }; // Format
+
+struct Info {
+    PAddr physical_address;
+    int width;
+    int height;
+    int stride;
+    Pica::Regs::TextureFormat format;
+
+    static Info FromPicaRegister(const Pica::Regs::TextureConfig& config,
+                                 const Pica::Regs::TextureFormat& format);
+};
 
 } // Texture
 

@@ -67,7 +67,7 @@ void Codec::init(bool decode) {
             this->expected_nibbles_size = this->start_nibbles_size;
     }
     this->validate();
-    if (!this->external_result_buffer || !this->invalid()) {
+    if (!this->external_result_buffer) {
         size_t buff_size = this->width * this->height * this->expected_nibbles_size / 2;
         this->internal_buffer = std::make_unique<u8[]>(buff_size);
         this->passing_buffer = this->internal_buffer.get();
@@ -91,7 +91,7 @@ void Codec::validate() {
         this->invalid_state = true;
         return;
     }
-    if (this->morton && this->morton_pass_tiling != 8 && this->morton_pass_tiling != 32) {
+    if (this->morton && this->morton_pass_tiling != 8) {
         this->invalid_state = true;
         return;
     }
@@ -102,18 +102,12 @@ inline void Codec::decode_morton_pass() {
     if (this->morton_pass_tiling == 8)
         Decoders::Morton_8x8(this->target_buffer, this->passing_buffer, this->width, this->height,
                              this->start_nibbles_size * 4);
-    else if (this->morton_pass_tiling == 32)
-        Decoders::Morton_32x32(this->target_buffer, this->passing_buffer, this->width, this->height,
-                               this->start_nibbles_size * 4);
 }
 
 inline void Codec::encode_morton_pass() {
     if (this->morton_pass_tiling == 8)
-        Encoders::Morton_8x8(this->target_buffer, this->passing_buffer, this->width, this->height,
+        Encoders::Morton_8x8(this->passing_buffer, this->target_buffer, this->width, this->height,
                              this->start_nibbles_size * 4);
-    else if (this->morton_pass_tiling == 32)
-        Encoders::Morton_32x32(this->target_buffer, this->passing_buffer, this->width, this->height,
-                               this->start_nibbles_size * 4);
 }
 
 std::unique_ptr<Codec> CodecFactory::build(Format::Type format, u8* target, u32 width, u32 height) {
