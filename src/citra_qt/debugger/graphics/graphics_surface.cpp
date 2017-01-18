@@ -18,6 +18,8 @@
 #include "core/memory.h"
 #include "video_core/pica.h"
 #include "video_core/pica_state.h"
+#include "video_core/texture/codec.h"
+#include "video_core/texture/formats.h"
 #include "video_core/utils.h"
 
 SurfacePicture::SurfacePicture(QWidget* parent, GraphicsSurfaceWidget* surface_widget_)
@@ -512,7 +514,7 @@ void GraphicsSurfaceWidget::OnUpdate() {
         }
 
         const auto texture = Pica::g_state.regs.GetTextures()[texture_index];
-        auto info = Pica::DebugUtils::TextureInfo::FromPicaRegister(texture.config, texture.format);
+        auto info = Pica::Texture::Info::FromPicaRegister(texture.config, texture.format);
 
         surface_address = info.physical_address;
         surface_width = info.width;
@@ -570,70 +572,38 @@ void GraphicsSurfaceWidget::OnUpdate() {
     unsigned nibbles_per_pixel = GraphicsSurfaceWidget::NibblesPerPixel(surface_format);
     unsigned stride = nibbles_per_pixel * surface_width / 2;
 
-    // We handle depth formats here because DebugUtils only supports TextureFormats
-    if (surface_format <= Format::MaxTextureFormat) {
+    // Generate a virtual texture
+    Pica::Texture::Info info;
+    info.physical_address = surface_address;
+    info.width = surface_width;
+    info.height = surface_height;
+    info.format = static_cast<Pica::Regs::TextureFormat>(surface_format);
+    info.stride = stride;
 
-        // Generate a virtual texture
-        Pica::DebugUtils::TextureInfo info;
-        info.physical_address = surface_address;
-        info.width = surface_width;
-        info.height = surface_height;
-        info.format = static_cast<Pica::Regs::TextureFormat>(surface_format);
-        info.stride = stride;
+    auto format = Pica::Texture::Format::FromTextureFormat(info.format);
+    auto tmp = Pica::Texture::CodecFactory::build(
+        // clang-format off
+            format, buffer, info.width, info.height
+        // clang-format on
+        );
+    Pica::Texture::Codec* codec = tmp.get();
+    codec->configTiling(true, 8); // change 8 for 32 in case the image is tiled
+                                  // on blocks of 32x32
+    codec->configRGBATransform(true);
+    codec->validate();
+    std::unique_ptr<u8[]> texture;
+    if (!codec->invalid()) {
+        codec->decode();
+        texture = codec->transferInternalBuffer();
+    }
 
-        for (unsigned int y = 0; y < surface_height; ++y) {
-            for (unsigned int x = 0; x < surface_width; ++x) {
-                Math::Vec4<u8> color = Pica::DebugUtils::LookupTexture(buffer, x, y, info, true);
-                decoded_image.setPixel(x, y, qRgba(color.r(), color.g(), color.b(), color.a()));
-            }
-        }
-
-    } else {
-
-        ASSERT_MSG(nibbles_per_pixel >= 2,
-                   "Depth decoder only supports formats with at least one byte per pixel");
-        unsigned bytes_per_pixel = nibbles_per_pixel / 2;
-
-        for (unsigned int y = 0; y < surface_height; ++y) {
-            for (unsigned int x = 0; x < surface_width; ++x) {
-                const u32 coarse_y = y & ~7;
-                u32 offset = VideoCore::GetMortonOffset(x, y, bytes_per_pixel) + coarse_y * stride;
-                const u8* pixel = buffer + offset;
-                Math::Vec4<u8> color = {0, 0, 0, 0};
-
-                switch (surface_format) {
-                case Format::D16: {
-                    u32 data = Color::DecodeD16(pixel);
-                    color.r() = data & 0xFF;
-                    color.g() = (data >> 8) & 0xFF;
-                    break;
-                }
-                case Format::D24: {
-                    u32 data = Color::DecodeD24(pixel);
-                    color.r() = data & 0xFF;
-                    color.g() = (data >> 8) & 0xFF;
-                    color.b() = (data >> 16) & 0xFF;
-                    break;
-                }
-                case Format::D24X8: {
-                    Math::Vec2<u32> data = Color::DecodeD24S8(pixel);
-                    color.r() = data.x & 0xFF;
-                    color.g() = (data.x >> 8) & 0xFF;
-                    color.b() = (data.x >> 16) & 0xFF;
-                    break;
-                }
-                case Format::X24S8: {
-                    Math::Vec2<u32> data = Color::DecodeD24S8(pixel);
-                    color.r() = color.g() = color.b() = data.y;
-                    break;
-                }
-                default:
-                    qDebug() << "Unknown surface format " << static_cast<int>(surface_format);
-                    break;
-                }
-
-                decoded_image.setPixel(x, y, qRgba(color.r(), color.g(), color.b(), 255));
-            }
+    u8* tex_ptr = texture.get();
+    for (int y = 0; y < info.height; ++y) {
+        for (int x = 0; x < info.width; ++x) {
+            u32 texel;
+            std::memcpy(&texel, &tex_ptr[(x + y * info.width) * 4], 4);
+            texel = (texel >> 8) | (texel << 24);
+            decoded_image.setPixel(x, y, texel);
         }
     }
 

@@ -20,24 +20,43 @@
 #include "video_core/debug_utils/debug_utils.h"
 #include "video_core/pica.h"
 #include "video_core/pica_state.h"
+#include "video_core/texture/codec.h"
+#include "video_core/texture/formats.h"
 
 namespace {
-QImage LoadTexture(const u8* src, const Pica::DebugUtils::TextureInfo& info) {
+QImage LoadTexture(const u8* src, const Pica::Texture::Info& info) {
+    auto format = Pica::Texture::Format::FromTextureFormat(info.format);
+    auto tmp = Pica::Texture::CodecFactory::build(
+        // clang-format off
+        format, const_cast<u8*>(src), info.width, info.height
+        // clang-format on
+        );
+    Pica::Texture::Codec* codec = tmp.get();
+    codec->configTiling(true, 8); // change 8 for 32 in case the image is tiled
+                                  // on blocks of 32x32
+    codec->configRGBATransform(true);
+    codec->validate();
+    std::unique_ptr<u8[]> texture;
+    if (!codec->invalid()) {
+        codec->decode();
+        texture = codec->transferInternalBuffer();
+    }
     QImage decoded_image(info.width, info.height, QImage::Format_ARGB32);
+    u8* tex_ptr = texture.get();
     for (int y = 0; y < info.height; ++y) {
         for (int x = 0; x < info.width; ++x) {
-            Math::Vec4<u8> color = Pica::DebugUtils::LookupTexture(src, x, y, info, true);
-            decoded_image.setPixel(x, y, qRgba(color.r(), color.g(), color.b(), color.a()));
+            u32 texel;
+            std::memcpy(&texel, &tex_ptr[(x + y * info.width) * 4], 4);
+            texel = (texel >> 8) | (texel << 24);
+            decoded_image.setPixel(x, y, texel);
         }
     }
-
     return decoded_image;
 }
 
 class TextureInfoWidget : public QWidget {
 public:
-    TextureInfoWidget(const u8* src, const Pica::DebugUtils::TextureInfo& info,
-                      QWidget* parent = nullptr)
+    TextureInfoWidget(const u8* src, const Pica::Texture::Info& info, QWidget* parent = nullptr)
         : QWidget(parent) {
         QLabel* image_widget = new QLabel;
         QPixmap image_pixmap = QPixmap::fromImage(LoadTexture(src, info));
@@ -160,7 +179,7 @@ void GPUCommandListWidget::SetCommandInfo(const QModelIndex& index) {
         const auto config = texture.config;
         const auto format = texture.format;
 
-        const auto info = Pica::DebugUtils::TextureInfo::FromPicaRegister(config, format);
+        const auto info = Pica::Texture::Info::FromPicaRegister(config, format);
         const u8* src = Memory::GetPhysicalPointer(config.GetPhysicalAddress());
         new_info_widget = new TextureInfoWidget(src, info);
     }
