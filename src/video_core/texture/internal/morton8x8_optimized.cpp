@@ -30,7 +30,7 @@
 #define __no_inline __attribute__((noinline))
 #define __hot __attribute__((hot))
 #if !defined(__forceinline)
-#define __forceinline attribute__((always_inline))
+#define __forceinline __attribute__((always_inline))
 #endif
 #else
 #define __hot
@@ -72,11 +72,11 @@ constexpr u32 isBottom(u32 block_index) {
 }
 
 template <void codec(u8*, u8*, size_t), size_t nibbles, u32 blocks, size_t block_size>
-__forceinline static void swizzle_block(u8*& morton_block, u8* linear_block);
+inline static void swizzle_block(u8*& morton_block, u8* linear_block);
 
 template <void codec(u8*, u8*, size_t), size_t nibbles, u32 block_index, u32 blocks,
           size_t block_size>
-__forceinline static void swizzle_block_aux(u8*& morton_block, u8* linear_block) {
+inline static void swizzle_block_aux(u8*& morton_block, u8* linear_block) {
     // move the linear_block pointer to the appropiate block
     const size_t right = isRight(block_index) * (blocks * nibbles) / 2;
     const size_t down = isBottom(block_index) * block_size;
@@ -85,7 +85,7 @@ __forceinline static void swizzle_block_aux(u8*& morton_block, u8* linear_block)
 }
 
 template <void codec(u8*, u8*, size_t), size_t nibbles, u32 blocks, size_t block_size>
-__forceinline static void swizzle_block(u8*& morton_block, u8* linear_block) {
+inline static void swizzle_block(u8*& morton_block, u8* linear_block) {
     const size_t new_block_size = block_size / 2;
     if (blocks <= 2) {
         // We handle 2*2 blocks on z-order

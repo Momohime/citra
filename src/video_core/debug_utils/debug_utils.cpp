@@ -332,12 +332,14 @@ static void FlushIOFile(png_structp png_ptr) {
 }
 #endif
 
+#ifdef HAVE_PNG
 void clean_mess(png_infop info_ptr, png_structp png_ptr) {
     if (info_ptr != nullptr)
         png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
     if (png_ptr != nullptr)
         png_destroy_write_struct(&png_ptr, (png_infopp) nullptr);
 }
+#endif
 
 void DumpTexture(const Pica::Regs::TextureConfig& texture_config, u8* data) {
 #ifndef HAVE_PNG

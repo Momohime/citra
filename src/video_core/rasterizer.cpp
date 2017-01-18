@@ -978,10 +978,12 @@ static void ProcessTriangleInternal(const Shader::OutputVertex& v0, const Shader
                                   &old_stencil](Pica::Regs::StencilAction action) {
                 u8 new_stencil =
                     PerformStencilAction(action, old_stencil, stencil_test.reference_value);
+                // clang-format off
                 if (g_state.regs.framebuffer.allow_depth_stencil_write != 0)
                     SetStencil(x >> 4, y >> 4,
                                (new_stencil & stencil_test.write_mask) |
                                    (old_stencil & ~stencil_test.write_mask));
+                // clang-format on
             };
 
             if (stencil_action_enable) {

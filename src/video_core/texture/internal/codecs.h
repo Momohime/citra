@@ -16,7 +16,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -35,7 +34,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -54,7 +52,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -73,7 +70,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -92,7 +88,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -111,7 +106,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -130,7 +124,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -149,7 +142,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -168,7 +160,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -187,7 +178,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -206,7 +196,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -225,7 +214,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -244,7 +232,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -263,7 +250,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -282,7 +268,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -301,7 +286,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {
@@ -320,7 +304,6 @@ public:
     }
     void decode();
     void encode();
-    const Math::Vec4<u8> lookupTexel(u32 x, u32 y);
 
 protected:
     virtual void setSize() {

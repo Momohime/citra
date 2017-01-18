@@ -36,7 +36,7 @@ void Codec::configRGBATransform(bool active) {
     this->raw_RGBA = active;
 }
 
-void Codec::configPreConvertedRGBA(bool active) {
+void Codec::configPreconvertedRGBA(bool active) {
     this->preconverted = active;
 }
 
@@ -53,7 +53,7 @@ std::unique_ptr<u8[]> Codec::transferInternalBuffer() {
     return nullptr;
 }
 
-bool Codec::invalid() {
+bool Codec::invalid() const {
     return this->invalid_state;
 }
 
@@ -101,19 +101,19 @@ void Codec::validate() {
     this->invalid_state = false;
 }
 
-inline void Codec::decode_morton_pass() {
+inline void Codec::decode_morton_pass() const {
     if (this->morton_pass_tiling == 8)
-        Decoders::Morton_8x8(this->target_buffer, this->passing_buffer, this->width, this->height,
-                             this->start_nibbles_size * 4);
+        Decoders::Morton_8x8(const_cast<u8*>(this->target_buffer), this->passing_buffer,
+                             this->width, this->height, this->start_nibbles_size * 4);
 }
 
-inline void Codec::encode_morton_pass() {
+inline void Codec::encode_morton_pass() const {
     if (this->morton_pass_tiling == 8)
-        Encoders::Morton_8x8(this->passing_buffer, this->target_buffer, this->width, this->height,
-                             this->start_nibbles_size * 4);
+        Encoders::Morton_8x8(this->passing_buffer, const_cast<u8*>(this->target_buffer),
+                             this->width, this->height, this->start_nibbles_size * 4);
 }
 
-u32 Codec::getTexel(u32 x, u32 y) {
+u32 Codec::getTexel(const u32 x, const u32 y) const {
     const u32 tiling = this->morton_pass_tiling;
     const u8* position = this->getTile(x, y);
     const u32 bpp = this->start_nibbles_size * 4; // bits per pixel
@@ -128,12 +128,12 @@ u32 Codec::getTexel(u32 x, u32 y) {
     return result;
 }
 
-u8* Codec::getTile(u32 x, u32 y) {
+const u8* Codec::getTile(const u32 x, const u32 y) const {
     const u32 tiling = this->morton_pass_tiling;
-    x = (x / tiling) * tiling;
-    y = (y / tiling) * tiling;
+    const u32 x2 = (x / tiling) * tiling;
+    const u32 y2 = (y / tiling) * tiling;
     const u32 bpp = this->start_nibbles_size * 4;
-    const u64 offset = ((x + y * this->width) * bpp) / 8;
+    const u64 offset = ((x2 + y2 * this->width) * bpp) / 8;
     return (this->target_buffer + offset);
 }
 

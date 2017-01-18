@@ -126,19 +126,19 @@ inline void decode(u8* morton_pointer, u8* matrix_pointer, size_t read_size) {
     std::memcpy(matrix_pointer, morton_pointer, read_size);
 }
 
-template <void codec(u8*, u8*, size_t), size_t nibbles, size_t lines_per_block>
-void tiling_pass(u8* linear, u8* tiled, u32 x_blocks) {
+template <size_t nibbles, size_t lines_per_block>
+void tiling_pass(u8* linear, const u8* tiled, u32 x_blocks) {
     const size_t tiled_line_size = (lines_per_block * nibbles) / 2;
     const size_t row_length = x_blocks * tiled_line_size;
     for (u32 i = 0; i < lines_per_block; i++) {
         const u32 k = (lines_per_block - 1 - i);
         const size_t tiled_index = i * tiled_line_size;
         const size_t linear_index = k * row_length;
-        codec(tiled + tiled_index, linear + linear_index, tiled_line_size);
+        std::memcpy(linear + linear_index, tiled + tiled_index, tiled_line_size);
     }
 }
 
-inline void etc1_pass(u8* etc1_buffer, u8* linear_buffer, u32 x_blocks) {
+inline void etc1_pass(const u8* etc1_buffer, u8* linear_buffer, u32 x_blocks) {
     const size_t line = 8 * 4;
     alignas(64) u8 tmp[line * 8];
     for (u32 i = 0; i < 4; i++) {
@@ -153,10 +153,10 @@ inline void etc1_pass(u8* etc1_buffer, u8* linear_buffer, u32 x_blocks) {
             }
         }
     }
-    tiling_pass<&decode, 8, 8>(linear_buffer, tmp, x_blocks);
+    tiling_pass<8, 8>(linear_buffer, tmp, x_blocks);
 }
 
-inline void etc1a4_pass(u8* etc1_buffer, u8* linear_buffer, u32 x_blocks) {
+inline void etc1a4_pass(const u8* etc1_buffer, u8* linear_buffer, u32 x_blocks) {
     const size_t line = 8 * 4;
     alignas(64) u8 tmp[line * 8];
     for (u32 i = 0; i < 4; i++) {
@@ -175,10 +175,10 @@ inline void etc1a4_pass(u8* etc1_buffer, u8* linear_buffer, u32 x_blocks) {
             }
         }
     }
-    tiling_pass<&decode, 8, 8>(linear_buffer, tmp, x_blocks);
+    tiling_pass<8, 8>(linear_buffer, tmp, x_blocks);
 }
 
-void ETC1A4(u8* etc1_buffer, u8* matrix_buffer, u32 width, u32 height) {
+void ETC1A4(const u8* etc1_buffer, u8* matrix_buffer, u32 width, u32 height) {
     const u32 x_blocks = (width / 8);
     const u32 y_blocks = (height / 8);
     const size_t line_size = 8 * 4;
@@ -196,7 +196,7 @@ void ETC1A4(u8* etc1_buffer, u8* matrix_buffer, u32 width, u32 height) {
     }
 }
 
-void ETC1(u8* etc1_buffer, u8* matrix_buffer, u32 width, u32 height) {
+void ETC1(const u8* etc1_buffer, u8* matrix_buffer, u32 width, u32 height) {
     const u32 x_blocks = (width / 8);
     const u32 y_blocks = (height / 8);
     const size_t line_size = 8 * 4;

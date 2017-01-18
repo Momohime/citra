@@ -26,7 +26,7 @@
 #include "video_core/video_core.h"
 
 #define TEXTURE_CACHE_SIZE (1024 * 1024 * 8) // 8MB inner cache for decoding/encoding
-alignas(64) static u8 TextureCache[TEXTURE_CACHE_SIZE];
+alignas(64) static u8 texture_cache[TEXTURE_CACHE_SIZE];
 
 struct FormatTuple {
     GLint internal_format;
@@ -314,12 +314,12 @@ CachedSurface* RasterizerCacheOpenGL::GetSurface(const CachedSurface& params, bo
             codec->validate();
             if (!codec->invalid()) {
                 u32 estimated_size =
-                    params.width * params.height * codec->getInternalBytesPerPixel();
+                    (params.width * params.height * codec->getInternalBitsPerPixel()) / 8;
                 if (estimated_size <= TEXTURE_CACHE_SIZE) {
-                    codec->setExternalBuffer(TextureCache);
+                    codec->setExternalBuffer(texture_cache);
                     codec->decode();
                     glTexImage2D(GL_TEXTURE_2D, 0, tuple.internal_format, params.width,
-                                 params.height, 0, tuple.format, tuple.type, TextureCache);
+                                 params.height, 0, tuple.format, tuple.type, texture_cache);
                 } else {
                     codec->decode();
                     std::unique_ptr<u8[]> decoded_texture = codec->transferInternalBuffer();
@@ -663,7 +663,7 @@ void RasterizerCacheOpenGL::FlushSurface(CachedSurface* surface) {
         std::vector<u8> temp_gl_buffer;
         u8* temporal_buffer;
         if (size <= TEXTURE_CACHE_SIZE)
-            temporal_buffer = TextureCache;
+            temporal_buffer = texture_cache;
         else {
             temp_gl_buffer.resize(size);
             temporal_buffer = temp_gl_buffer.data();
@@ -678,7 +678,7 @@ void RasterizerCacheOpenGL::FlushSurface(CachedSurface* surface) {
         codec->configTiling(true, 8); // change 8 for 32 in case the mage is tiled
                                       // on blocks of 32x32
         codec->configRGBATransform(!native_format[(u32)surface->pixel_format]);
-        codec->configPreConvertedRGBA(!native_format[(u32)surface->pixel_format]);
+        codec->configPreconvertedRGBA(!native_format[(u32)surface->pixel_format]);
         codec->setExternalBuffer(dst_buffer);
         codec->validate();
         if (!codec->invalid())

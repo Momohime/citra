@@ -22,6 +22,3 @@
 
 // Encoders
 #include "encoders.cpp"
-
-// Lookup Texture
-#include "lookup.cpp"
