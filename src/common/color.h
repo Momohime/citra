@@ -110,6 +110,12 @@ inline const Math::Vec4<u8> DecodeRGBA4(const u8* bytes) {
             Convert4To8((pixel >> 4) & 0xF), Convert4To8(pixel & 0xF)};
 }
 
+// would an specialization but currently, you can't specialize static members.
+inline const Math::Vec4<u8> DecodeTexel(unsigned int rgba) {
+    return {(u8)(rgba & 0x00FF), (u8)((rgba >> 8) & 0x00FF), (u8)((rgba >> 16) & 0x00FF),
+            (u8)((rgba >> 24) & 0x00FF)};
+}
+
 /**
  * Decode a depth value stored in D16 format
  * @param bytes Pointer to encoded source value

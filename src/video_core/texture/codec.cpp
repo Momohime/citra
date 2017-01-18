@@ -1,3 +1,6 @@
+#include <cstring>
+#include <memory>
+#include <utility>
 #include "common/color.h"
 #include "common/math_util.h"
 #include "common/swap.h"
@@ -108,6 +111,30 @@ inline void Codec::encode_morton_pass() {
     if (this->morton_pass_tiling == 8)
         Encoders::Morton_8x8(this->passing_buffer, this->target_buffer, this->width, this->height,
                              this->start_nibbles_size * 4);
+}
+
+u32 Codec::getTexel(u32 x, u32 y) {
+    const u32 tiling = this->morton_pass_tiling;
+    const u8* position = this->getTile(x, y);
+    const u32 bpp = this->start_nibbles_size * 4; // bits per pixel
+    const u32 mask = 0x0000FFFFFFFFUL >> (32 - bpp);
+    const u32 bit = (bpp % 8);
+    const u64 offset = (u64)EncodeMorton(x % tiling, y % tiling) % (tiling * tiling);
+    u32 result;
+    const u32 read_size = (bpp / 8) | ((bpp < 8) & 0x01);
+    std::memcpy(&result, &position[offset], read_size);
+    result >>= bit;
+    result &= mask;
+    return result;
+}
+
+u8* Codec::getTile(u32 x, u32 y) {
+    const u32 tiling = this->morton_pass_tiling;
+    x = (x / tiling) * tiling;
+    y = (y / tiling) * tiling;
+    const u32 bpp = this->start_nibbles_size * 4;
+    const u64 offset = ((x + y * this->width) * bpp) / 8;
+    return (this->target_buffer + offset);
 }
 
 std::unique_ptr<Codec> CodecFactory::build(Format::Type format, u8* target, u32 width, u32 height) {

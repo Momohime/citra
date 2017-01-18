@@ -4,6 +4,7 @@
 #include <iostream>
 #include <memory>
 #include "common/common_types.h"
+#include "common/vector_math.h"
 #include "video_core/texture/formats.h"
 
 namespace Pica {
@@ -22,6 +23,11 @@ public:
 
     virtual void decode();
     virtual void encode();
+
+    // for legacy code compatibility
+    // returns the corresponding texel in RGBA format.
+    // prefer full decode/encode than texel lookups for full image decoding.
+    virtual const Math::Vec4<u8> lookupTexel(u32 x, u32 y) = 0;
 
     inline void setWidth(u32 width) {
         this->width = width;
@@ -56,8 +62,6 @@ protected:
     u32 morton_pass_tiling = 8;
     bool raw_RGBA = false;
     bool preconverted = false;
-    bool disable_components = false;
-    u32 disable_components_mask = 0;
 
     u32 start_nibbles_size;
     u32 expected_nibbles_size;
@@ -77,6 +81,8 @@ protected:
 
     inline void decode_morton_pass();
     inline void encode_morton_pass();
+    u32 getTexel(u32 x, u32 y);
+    u8* getTile(u32 x, u32 y);
 };
 
 namespace CodecFactory {

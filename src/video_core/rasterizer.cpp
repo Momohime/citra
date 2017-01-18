@@ -21,6 +21,8 @@
 #include "video_core/pica_types.h"
 #include "video_core/rasterizer.h"
 #include "video_core/shader/shader.h"
+#include "video_core/texture/codec.h"
+#include "video_core/texture/formats.h"
 #include "video_core/utils.h"
 
 namespace Pica {
@@ -399,6 +401,25 @@ static void ProcessTriangleInternal(const Shader::OutputVertex& v0, const Shader
     auto textures = regs.GetTextures();
     auto tev_stages = regs.GetTevStages();
 
+    std::unique_ptr<u8[]> decoded_textures[3];
+    for (int i = 0; i < 3; i++) {
+        const auto& texture = textures[i];
+        if (!texture.enabled)
+            continue;
+        u8* texture_data = Memory::GetPhysicalPointer(texture.config.GetPhysicalAddress());
+        auto format = Pica::Texture::Format::FromTextureFormat(texture.format);
+        auto tmp = Pica::Texture::CodecFactory::build(format, texture_data, texture.config.width,
+                                                      texture.config.height);
+        Pica::Texture::Codec* codec = tmp.get();
+        codec->configTiling(true, 8);
+        codec->configRGBATransform(true);
+        codec->validate();
+        if (!codec->invalid()) {
+            codec->decode();
+            decoded_textures[i] = codec->transferInternalBuffer();
+        }
+    }
+
     bool stencil_action_enable = g_state.regs.output_merger.stencil_test.enable &&
                                  g_state.regs.framebuffer.depth_format == Regs::DepthFormat::D24S8;
     const auto stencil_test = g_state.regs.output_merger.stencil_test;
@@ -573,17 +594,17 @@ static void ProcessTriangleInternal(const Shader::OutputVertex& v0, const Shader
                     // NOTE: This may not be the right place for the inversion.
                     // TODO: Check if this applies to ETC textures, too.
                     s = GetWrappedTexCoord(texture.config.wrap_s, s, texture.config.width);
-                    t = texture.config.height - 1 -
-                        GetWrappedTexCoord(texture.config.wrap_t, t, texture.config.height);
+                    t = GetWrappedTexCoord(texture.config.wrap_t, t, texture.config.height);
 
+                    u8* decoded_texture = decoded_textures[i].get();
+                    u64 pos = s + texture.config.width * t;
+                    u32 texel;
+                    std::memcpy(&texel, &decoded_texture[pos * 4], 4);
+                    // TODO: Apply the min and mag filters to the texture
+                    texture_color[i] = Color::DecodeTexel(texel);
+#if PICA_DUMP_TEXTURES
                     u8* texture_data =
                         Memory::GetPhysicalPointer(texture.config.GetPhysicalAddress());
-                    auto info =
-                        DebugUtils::TextureInfo::FromPicaRegister(texture.config, texture.format);
-
-                    // TODO: Apply the min and mag filters to the texture
-                    texture_color[i] = DebugUtils::LookupTexture(texture_data, s, t, info);
-#if PICA_DUMP_TEXTURES
                     DebugUtils::DumpTexture(texture.config, texture_data);
 #endif
                 }
@@ -958,8 +979,9 @@ static void ProcessTriangleInternal(const Shader::OutputVertex& v0, const Shader
                 u8 new_stencil =
                     PerformStencilAction(action, old_stencil, stencil_test.reference_value);
                 if (g_state.regs.framebuffer.allow_depth_stencil_write != 0)
-                    SetStencil(x >> 4, y >> 4, (new_stencil & stencil_test.write_mask) |
-                                                   (old_stencil & ~stencil_test.write_mask));
+                    SetStencil(x >> 4, y >> 4,
+                               (new_stencil & stencil_test.write_mask) |
+                                   (old_stencil & ~stencil_test.write_mask));
             };
 
             if (stencil_action_enable) {

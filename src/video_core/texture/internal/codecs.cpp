@@ -1,8 +1,10 @@
+#include "common/color.h"
+#include "common/common_types.h"
+#include "common/vector_math.h"
 #include "video_core/texture/internal/codecs.h"
 #include "video_core/texture/internal/etc1.h"
 #include "video_core/texture/internal/morton.h"
 #include "video_core/texture/internal/texture_utils.h"
-
 ///////////////////////////////////////////////////////////////////////////////
 // Optimizations
 //////////////////////////////////////////////////////////////////////////////
@@ -20,3 +22,6 @@
 
 // Encoders
 #include "encoders.cpp"
+
+// Lookup Texture
+#include "lookup.cpp"

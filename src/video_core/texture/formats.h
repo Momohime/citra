@@ -10,6 +10,25 @@ namespace Pica {
 
 namespace Texture {
 
+struct Info {
+    PAddr physical_address;
+    int width;
+    int height;
+    int stride;
+    Pica::Regs::TextureFormat format;
+
+    static Info FromPicaRegister(const Pica::Regs::TextureConfig& config,
+                                 const Pica::Regs::TextureFormat& format) {
+        Info info;
+        info.physical_address = config.GetPhysicalAddress();
+        info.width = config.width;
+        info.height = config.height;
+        info.format = format;
+        info.stride = Pica::Regs::NibblesPerPixel(info.format) * info.width / 2;
+        return info;
+    }
+};
+
 struct Format {
 
     enum class Type {
@@ -91,17 +110,6 @@ struct Format {
     }
 
 }; // Format
-
-struct Info {
-    PAddr physical_address;
-    int width;
-    int height;
-    int stride;
-    Pica::Regs::TextureFormat format;
-
-    static Info FromPicaRegister(const Pica::Regs::TextureConfig& config,
-                                 const Pica::Regs::TextureFormat& format);
-};
 
 } // Texture
 

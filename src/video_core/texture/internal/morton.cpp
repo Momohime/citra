@@ -19,22 +19,16 @@ static u32 Compact1By1(u32 x) {
     return x;
 }
 
-static u32 EncodeMorton(u32 x, u32 y) {
+u32 EncodeMorton(u32 x, u32 y) {
     return (Part1By1(y) << 1) | Part1By1(x);
 }
 
-static u32 DecodeMortonX(u32 code) {
+u32 DecodeMortonX(u32 code) {
     return Compact1By1(code >> 0);
 }
 
-static u32 DecodeMortonY(u32 code) {
+u32 DecodeMortonY(u32 code) {
     return Compact1By1(code >> 1);
-}
-
-u32 MortonOffset(u32 x, u32 y, u32 width, u32 height, u32 tiling, u32 bpp) {
-    u32 tile = (x + y * height) * width / (tiling * tiling);
-    tile = (tile * bpp) / 8;
-    return tile + EncodeMorton(x % tiling, y % tiling);
 }
 
 #include "morton8x8_optimized.cpp"
